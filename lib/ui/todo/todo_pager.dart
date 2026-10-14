@@ -14,8 +14,9 @@ import 'task_list.dart';
 /// screen and its add button need it, and it resets to "now" whenever the
 /// day changes.
 class TodoPager extends ConsumerStatefulWidget {
-  const TodoPager({super.key, required this.drawer});
+  const TodoPager({super.key, required this.scaffoldKey, required this.drawer});
 
+  final GlobalKey<ScaffoldState> scaffoldKey;
   final Widget drawer;
 
   @override
@@ -23,7 +24,6 @@ class TodoPager extends ConsumerStatefulWidget {
 }
 
 class _TodoPagerState extends ConsumerState<TodoPager> {
-  final _scaffold = GlobalKey<ScaffoldState>();
   final _pages = PageController();
   int _page = 0;
   late List<Period> _periods = _current(ref.read(todayProvider));
@@ -73,7 +73,7 @@ class _TodoPagerState extends ConsumerState<TodoPager> {
         _page == 0 &&
         n.overscroll < 0 &&
         n.dragDetails != null) {
-      _scaffold.currentState?.openDrawer();
+      widget.scaffoldKey.currentState?.openDrawer();
     }
     return false;
   }
@@ -87,7 +87,7 @@ class _TodoPagerState extends ConsumerState<TodoPager> {
         _period == Period.of(_period.kind, ref.watch(todayProvider));
 
     return Scaffold(
-      key: _scaffold,
+      key: widget.scaffoldKey,
       drawer: widget.drawer,
       appBar: AppBar(
         title: GestureDetector(

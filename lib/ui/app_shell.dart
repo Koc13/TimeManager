@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../providers/data_providers.dart';
@@ -27,6 +28,10 @@ class _AppShellState extends ConsumerState<AppShell>
     with WidgetsBindingObserver {
   Section _section = Section.todo;
   Timer? _midnight;
+
+  /// The visible section's Scaffold. Only one section is mounted at a time,
+  /// so one key is enough; the shell uses it to open/close the drawer.
+  final _scaffold = GlobalKey<ScaffoldState>();
 
   @override
   void initState() {
@@ -69,23 +74,53 @@ class _AppShellState extends ConsumerState<AppShell>
   }
 
   void _go(Section section) {
-    Navigator.of(context).maybePop(); // close the drawer
+    _scaffold.currentState?.closeDrawer();
     setState(() => _section = section);
+  }
+
+  // Back is always claimed (canPop: false) and resolved here, in order:
+  // close the drawer, leave a non-ToDo section, exit the app.
+  //
+  // Why not canPop: true at the ToDo? With Android's predictive back,
+  // Flutter tells the OS it handles Back only if something can pop, and an
+  // open drawer doesn't count, so the OS closed the app with the drawer
+  // open. And since canPop: false also blocks the drawer's own pop (a
+  // route checks PopScope before its local history), the drawer is closed
+  // explicitly instead.
+  void _onBack(bool didPop, Object? _) {
+    if (didPop) return;
+    final scaffold = _scaffold.currentState;
+    if (scaffold != null && scaffold.isDrawerOpen) {
+      scaffold.closeDrawer();
+    } else if (_section != Section.todo) {
+      setState(() => _section = Section.todo);
+    } else {
+      SystemNavigator.pop();
+    }
   }
 
   @override
   Widget build(BuildContext context) {
     final drawer = AppDrawer(selected: _section, onSelect: _go);
     return PopScope(
-      canPop: _section == Section.todo,
-      onPopInvokedWithResult: (didPop, _) {
-        if (!didPop) setState(() => _section = Section.todo);
-      },
+      canPop: false,
+      onPopInvokedWithResult: _onBack,
       child: switch (_section) {
-        Section.todo => TodoPager(drawer: drawer),
-        Section.timer => _NotYet(drawer: drawer, title: 'Timer', milestone: 7),
-        Section.goals => _NotYet(drawer: drawer, title: 'Goals', milestone: 5),
+        Section.todo => TodoPager(scaffoldKey: _scaffold, drawer: drawer),
+        Section.timer => _NotYet(
+          scaffoldKey: _scaffold,
+          drawer: drawer,
+          title: 'Timer',
+          milestone: 7,
+        ),
+        Section.goals => _NotYet(
+          scaffoldKey: _scaffold,
+          drawer: drawer,
+          title: 'Goals',
+          milestone: 5,
+        ),
         Section.habits => _NotYet(
+          scaffoldKey: _scaffold,
           drawer: drawer,
           title: 'Habits',
           milestone: 6,
@@ -126,17 +161,20 @@ class AppDrawer extends StatelessWidget {
 
 class _NotYet extends StatelessWidget {
   const _NotYet({
+    required this.scaffoldKey,
     required this.drawer,
     required this.title,
     required this.milestone,
   });
 
+  final GlobalKey<ScaffoldState> scaffoldKey;
   final Widget drawer;
   final String title;
   final int milestone;
 
   @override
   Widget build(BuildContext context) => Scaffold(
+    key: scaffoldKey,
     drawer: drawer,
     appBar: AppBar(title: Text(title)),
     body: Center(child: Text('Coming soon')),

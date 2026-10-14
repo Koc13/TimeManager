@@ -7,6 +7,7 @@ import 'package:first_app/providers/data_providers.dart';
 import 'package:first_app/storage/data_store.dart';
 import 'package:first_app/ui/app_shell.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -137,5 +138,43 @@ void main() {
     await tester.tap(find.text('Goals'));
     await tester.pumpAndSettle();
     expect(find.text('Coming soon'), findsOneWidget);
+  });
+
+  testWidgets('Back closes the drawer, then leaves a section, then exits', (
+    tester,
+  ) async {
+    final platformCalls = <String>[];
+    tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+      SystemChannels.platform,
+      (call) async {
+        platformCalls.add(call.method);
+        return null;
+      },
+    );
+    await pumpApp(tester);
+
+    Future<void> back() async {
+      await tester.binding.handlePopRoute();
+      await tester.pumpAndSettle();
+    }
+
+    await tester.tap(find.byTooltip('Open navigation menu'));
+    await tester.pumpAndSettle();
+    await back();
+    expect(find.byType(NavigationDrawer), findsNothing);
+    expect(find.text('Wed 14 Oct'), findsOneWidget);
+    expect(platformCalls, isNot(contains('SystemNavigator.pop')));
+
+    await tester.tap(find.byTooltip('Open navigation menu'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Habits'));
+    await tester.pumpAndSettle();
+    expect(find.text('Coming soon'), findsOneWidget);
+    await back();
+    expect(find.text('Wed 14 Oct'), findsOneWidget);
+    expect(platformCalls, isNot(contains('SystemNavigator.pop')));
+
+    await back();
+    expect(platformCalls, contains('SystemNavigator.pop'));
   });
 }

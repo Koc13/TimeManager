@@ -3,7 +3,7 @@ import 'package:flutter_test/flutter_test.dart';
 
 void main() {
   group('week keys at ISO year boundaries', () {
-    String week(DateTime d) => WeekPeriod.containing(d).key;
+    String week(DateTime d) => Week.containing(d).key;
 
     test(
       'mid-year date',
@@ -20,37 +20,37 @@ void main() {
       expect(week(DateTime(2018, 12, 31)), '2019-W01');
     });
     test('53-week year round-trips through start', () {
-      const w = WeekPeriod(2020, 53);
+      const w = Week(2020, 53);
       expect(week(DateTime(2020, 12, 31)), w.key);
-      expect(WeekPeriod.containing(w.start), w);
+      expect(Week.containing(w.start), w);
       expect(w.next.key, '2021-W01');
-      expect(const WeekPeriod(2021, 1).previous.key, '2020-W53');
+      expect(const Week(2021, 1).previous.key, '2020-W53');
     });
   });
 
   test('a week spanning a DST change is 7 days and starts at midnight', () {
-    const w = WeekPeriod(2026, 13); // 2026-03-23..29, EU spring-forward
+    const w = Week(2026, 13); // 2026-03-23..29, EU spring-forward
     expect(w.start, DateTime(2026, 3, 23));
     expect(w.endExclusive, DateTime(2026, 3, 30));
     expect(daysBetween(w.start, w.endExclusive), 7);
   });
 
   test('months wrap December and handle leap February', () {
-    expect(const MonthPeriod(2026, 12).next.key, '2027-01');
-    expect(const MonthPeriod(2027, 1).previous.key, '2026-12');
-    expect(const MonthPeriod(2024, 2).endExclusive, DateTime(2024, 3, 1));
+    expect(const Month(2026, 12).next.key, '2027-01');
+    expect(const Month(2027, 1).previous.key, '2026-12');
+    expect(const Month(2024, 2).endExclusive, DateTime(2024, 3, 1));
   });
 
   test('day next/previous cross month and year ends', () {
-    expect(DayPeriod(DateTime(2026, 12, 31)).next.key, '2027-01-01');
-    expect(DayPeriod(DateTime(2024, 3, 1)).previous.key, '2024-02-29');
+    expect(Day(DateTime(2026, 12, 31)).next.key, '2027-01-01');
+    expect(Day(DateTime(2024, 3, 1)).previous.key, '2024-02-29');
   });
 
   test('parse is the inverse of key, and equality is by key', () {
     for (final key in ['2026-10-14', '2026-W42', '2026-10']) {
       expect(Period.parse(key).key, key);
     }
-    expect(Period.parse('2026-10-14'), DayPeriod(DateTime(2026, 10, 14, 18)));
+    expect(Period.parse('2026-10-14'), Day(DateTime(2026, 10, 14, 18)));
     expect(Period.tryParse('notes'), isNull);
   });
 

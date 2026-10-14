@@ -12,26 +12,26 @@ sealed class Period implements Comparable<Period> {
 
   /// The period of [kind] containing [date].
   factory Period.of(PeriodKind kind, DateTime date) => switch (kind) {
-    PeriodKind.day => DayPeriod(date),
-    PeriodKind.week => WeekPeriod.containing(date),
-    PeriodKind.month => MonthPeriod(date.year, date.month),
+    PeriodKind.day => Day(date),
+    PeriodKind.week => Week.containing(date),
+    PeriodKind.month => Month(date.year, date.month),
   };
 
   /// Inverse of [key]: '2026-10-14', '2026-W42' or '2026-10'.
   static Period parse(String key) {
     final week = RegExp(r'^(\d{4})-W(\d{2})$').firstMatch(key);
     if (week != null) {
-      return WeekPeriod(int.parse(week[1]!), int.parse(week[2]!));
+      return Week(int.parse(week[1]!), int.parse(week[2]!));
     }
     final day = RegExp(r'^(\d{4})-(\d{2})-(\d{2})$').firstMatch(key);
     if (day != null) {
-      return DayPeriod(
+      return Day(
         DateTime(int.parse(day[1]!), int.parse(day[2]!), int.parse(day[3]!)),
       );
     }
     final month = RegExp(r'^(\d{4})-(\d{2})$').firstMatch(key);
     if (month != null) {
-      return MonthPeriod(int.parse(month[1]!), int.parse(month[2]!));
+      return Month(int.parse(month[1]!), int.parse(month[2]!));
     }
     throw FormatException('Not a period key', key);
   }
@@ -72,8 +72,8 @@ sealed class Period implements Comparable<Period> {
   String toString() => key;
 }
 
-final class DayPeriod extends Period {
-  DayPeriod(DateTime date) : date = midnight(date);
+final class Day extends Period {
+  Day(DateTime date) : date = midnight(date);
 
   final DateTime date;
 
@@ -86,15 +86,15 @@ final class DayPeriod extends Period {
   @override
   DateTime get endExclusive => _shiftDays(date, 1);
   @override
-  DayPeriod get next => DayPeriod(_shiftDays(date, 1));
+  Day get next => Day(_shiftDays(date, 1));
   @override
-  DayPeriod get previous => DayPeriod(_shiftDays(date, -1));
+  Day get previous => Day(_shiftDays(date, -1));
 }
 
-final class WeekPeriod extends Period {
-  const WeekPeriod(this.isoYear, this.week);
+final class Week extends Period {
+  const Week(this.isoYear, this.week);
 
-  factory WeekPeriod.containing(DateTime date) {
+  factory Week.containing(DateTime date) {
     // ISO 8601: the Thursday of a date's week decides its week-year.
     final day = midnight(date);
     final thursday = _shiftDays(day, 4 - day.weekday);
@@ -103,7 +103,7 @@ final class WeekPeriod extends Period {
         (_daysSinceEpoch(thursday) - _daysSinceEpoch(_week1Monday(isoYear))) ~/
             7 +
         1;
-    return WeekPeriod(isoYear, week);
+    return Week(isoYear, week);
   }
 
   final int isoYear;
@@ -118,13 +118,13 @@ final class WeekPeriod extends Period {
   @override
   DateTime get endExclusive => _shiftDays(start, 7);
   @override
-  WeekPeriod get next => WeekPeriod.containing(endExclusive);
+  Week get next => Week.containing(endExclusive);
   @override
-  WeekPeriod get previous => WeekPeriod.containing(_shiftDays(start, -1));
+  Week get previous => Week.containing(_shiftDays(start, -1));
 }
 
-final class MonthPeriod extends Period {
-  const MonthPeriod(this.year, this.month);
+final class Month extends Period {
+  const Month(this.year, this.month);
 
   final int year;
   final int month;
@@ -139,11 +139,11 @@ final class MonthPeriod extends Period {
   @override
   DateTime get endExclusive => DateTime(year, month + 1);
   @override
-  MonthPeriod get next => MonthPeriod(endExclusive.year, endExclusive.month);
+  Month get next => Month(endExclusive.year, endExclusive.month);
   @override
-  MonthPeriod get previous {
+  Month get previous {
     final prev = DateTime(year, month - 1);
-    return MonthPeriod(prev.year, prev.month);
+    return Month(prev.year, prev.month);
   }
 }
 

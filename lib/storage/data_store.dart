@@ -153,10 +153,10 @@ class DataStore {
 /// Where a period's file lives, relative to the root. Weeks are filed under
 /// their ISO year, which differs from the calendar year around New Year.
 String periodPath(Period period) => switch (period) {
-  DayPeriod(:final date) =>
+  Day(:final date) =>
     'periods/${date.year}/${date.month.toString().padLeft(2, '0')}/${period.key}.md',
-  WeekPeriod(:final isoYear) => 'periods/$isoYear/${period.key}.md',
-  MonthPeriod(:final year) => 'periods/$year/${period.key}.md',
+  Week(:final isoYear) => 'periods/$isoYear/${period.key}.md',
+  Month(:final year) => 'periods/$year/${period.key}.md',
 };
 
 /// Writes a temp file next to [file], then renames it over [file]. A crash

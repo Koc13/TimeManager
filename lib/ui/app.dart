@@ -4,7 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../providers/data_providers.dart';
 import '../storage/data_store.dart';
 import '../storage/local_settings.dart';
-import 'home_screen.dart';
+import 'app_shell.dart';
 import 'setup_screen.dart';
 
 const _seed = Color(0xFF0A84FF);
@@ -62,7 +62,7 @@ class _TimeManagerAppState extends State<TimeManagerApp> {
             initialError: _error,
             onOpened: (opened) => setState(() => _store = opened),
           )
-        : const HomeScreen();
+        : const AppShell();
     final app = MaterialApp(
       title: 'Time Manager',
       theme: _theme(Brightness.light),

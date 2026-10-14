@@ -18,7 +18,7 @@ String iso(int day, int h, int m) {
 }
 
 void main() {
-  final day = DayPeriod(DateTime(2026, 10, 14));
+  final day = Day(DateTime(2026, 10, 14));
 
   // An example day file in canonical form, plus unknown keys at the
   // top level, inside a task, and inside a session.
@@ -103,7 +103,7 @@ Free Markdown text.
 
   test('week and month files hold only tasks and the journal', () {
     final week = PeriodDoc(
-      period: const WeekPeriod(2026, 42),
+      period: const Week(2026, 42),
       tasks: [
         Task(id: 't_1', title: 'Plan trip', created: DateTime(2026, 10, 12)),
       ],

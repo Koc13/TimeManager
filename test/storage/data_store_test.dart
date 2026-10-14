@@ -15,7 +15,7 @@ void main() {
   tearDown(() => dir.delete(recursive: true));
 
   PeriodDoc dayWithTask(String title) => PeriodDoc(
-    period: DayPeriod(DateTime(2026, 10, 14)),
+    period: Day(DateTime(2026, 10, 14)),
     tasks: [Task(id: 't_1', title: title, created: DateTime(2026, 10, 14, 8))],
   );
 
@@ -37,8 +37,8 @@ void main() {
     final store = await DataStore.open(root());
     await store.savePeriods([
       dayWithTask('Trash'),
-      PeriodDoc.empty(const WeekPeriod(2026, 53)),
-      PeriodDoc.empty(const MonthPeriod(2026, 10)),
+      PeriodDoc.empty(const Week(2026, 53)),
+      PeriodDoc.empty(const Month(2026, 10)),
     ]);
     await store.saveGoal(
       Goal(id: 'g_1', title: 'Read', created: DateTime(2026)),
@@ -60,11 +60,7 @@ void main() {
 
     final reopened = await DataStore.open(root());
     expect(
-      reopened.data
-          .period(DayPeriod(DateTime(2026, 10, 14)))
-          .tasks
-          .single
-          .title,
+      reopened.data.period(Day(DateTime(2026, 10, 14))).tasks.single.title,
       'Trash',
     );
     expect(reopened.data.goals['g_1']!.title, 'Read');
@@ -88,7 +84,7 @@ void main() {
     file.writeAsStringSync(file.readAsStringSync().replaceAll('Trash', 'Bins'));
     await store.reload();
     expect(
-      store.data.period(DayPeriod(DateTime(2026, 10, 14))).tasks.single.title,
+      store.data.period(Day(DateTime(2026, 10, 14))).tasks.single.title,
       'Bins',
     );
   });

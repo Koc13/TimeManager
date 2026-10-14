@@ -56,11 +56,27 @@ class _TodoPagerState extends ConsumerState<TodoPager> {
     final period = _period;
     final result = await showTaskEditor(context);
     if (result == null || !mounted) return;
+    final data = ref.read(appDataProvider.notifier);
+    final repeat = result.repeat;
+    final reminder = result.reminder;
     await runAction(
       context,
-      () => ref
-          .read(appDataProvider.notifier)
-          .addTask(period, title: result.title, priority: result.priority),
+      () => repeat == null
+          ? data.addTask(
+              period,
+              title: result.title,
+              priority: result.priority,
+              deadline: result.deadline,
+              reminder: reminder,
+            )
+          : data.createRecurring(
+              title: result.title,
+              priority: result.priority,
+              rule: repeat,
+              reminderMinute: reminder == null
+                  ? null
+                  : reminder.hour * 60 + reminder.minute,
+            ),
     );
   }
 

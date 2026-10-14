@@ -33,4 +33,14 @@ class LocalSettings {
   Future<Object?> timer() async => (await _read())['timer'];
 
   Future<void> setTimer(Map<String, Object?>? json) => _update('timer', json);
+
+  /// Reminders this device has scheduled, task ID -> "time|title". Kept so
+  /// the next run knows what to cancel or reschedule.
+  Future<Map<String, String>> reminders() async {
+    final raw = (await _read())['reminders'];
+    return raw is Map ? raw.map((k, v) => MapEntry('$k', '$v')) : {};
+  }
+
+  Future<void> setReminders(Map<String, String> value) =>
+      _update('reminders', value);
 }

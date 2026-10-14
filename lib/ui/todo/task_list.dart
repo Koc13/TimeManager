@@ -27,6 +27,7 @@ class TaskTile extends ConsumerWidget {
       if (link != null) '→ ${targetName(ref.watch(appDataProvider), link)}',
       if (deadline != null)
         (overdue ? 'Overdue · ' : 'Due ') + dateTimeLabel(deadline),
+      if (task.reminder case final r? when r.isAfter(now)) '⏰ ${timeLabel(r)}',
       if (task.rolledOver > 0) '↻ ${task.rolledOver}',
     ];
 

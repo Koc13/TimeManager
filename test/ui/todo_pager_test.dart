@@ -237,4 +237,60 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.text('shipped the pager'), findsOneWidget);
   });
+
+  testWidgets('a repeating task creates a template and today\'s instance', (
+    tester,
+  ) async {
+    await pumpApp(tester);
+    await tester.tap(find.byTooltip('Add task'));
+    await tester.pumpAndSettle();
+    await tester.enterText(find.byType(TextField), 'Stretch');
+    await tester.tap(find.text('Repeat'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Every day'));
+    await tester.pumpAndSettle();
+    expect(find.text('Every day'), findsOneWidget); // the chip now says so
+    await tester.tap(find.text('Save'));
+    await settleIo(tester);
+
+    expect(find.text('Stretch'), findsOneWidget);
+    final template = store.data.recurring.values.single;
+    expect(template.lastGenerated, '2026-10-14');
+    expect(Directory('${dir.path}/recurring').listSync(), hasLength(1));
+
+    // Stopping the series keeps today's task.
+    await tester.longPress(find.text('Stretch'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Stop repeating'));
+    await settleIo(tester);
+    expect(store.data.recurring, isEmpty);
+    expect(find.text('Stretch'), findsOneWidget);
+  });
+
+  testWidgets('overdue deadlines are highlighted', (tester) async {
+    await tester.runAsync(
+      () => store.savePeriods([
+        PeriodDoc(
+          period: Day(now),
+          tasks: [
+            Task(
+              id: 't_1',
+              title: 'Send form',
+              created: now,
+              deadline: DateTime(2026, 10, 14, 8),
+            ),
+            Task(
+              id: 't_2',
+              title: 'Call bank',
+              created: now,
+              deadline: DateTime(2026, 10, 14, 17),
+            ),
+          ],
+        ),
+      ]),
+    );
+    await pumpApp(tester);
+    expect(find.text('Overdue · Wed 14 Oct 08:00'), findsOneWidget);
+    expect(find.text('Due Wed 14 Oct 17:00'), findsOneWidget);
+  });
 }

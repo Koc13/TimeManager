@@ -1,6 +1,7 @@
 import '../domain/aggregation.dart';
 import '../domain/habit.dart';
 import '../domain/period.dart';
+import '../domain/recurring.dart';
 
 const _weekdays = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
 const _months = [
@@ -55,3 +56,18 @@ String habitSummary(Habit? habit, HabitTotal total, {required bool singleDay}) {
 /// "70 min" / "1 h 10 min".
 String minutesLabel(int minutes) =>
     minutes < 60 ? '$minutes min' : '${minutes ~/ 60} h ${minutes % 60} min';
+
+String weekdayShort(int weekday) => _weekdays[weekday - 1];
+
+/// "Repeat" / "Every day" / "Mon, Wed, Fri" / "Monthly on day 15".
+String repeatLabel(RepeatRule? rule) => switch (rule?.every) {
+  null => 'Repeat',
+  RepeatEvery.day => 'Every day',
+  RepeatEvery.weekdays =>
+    (rule!.weekdays.toList()..sort()).map(weekdayShort).join(', '),
+  RepeatEvery.week => 'Every week',
+  RepeatEvery.month =>
+    rule!.dayOfMonth == null
+        ? 'Every month'
+        : 'Monthly on day ${rule.dayOfMonth}',
+};

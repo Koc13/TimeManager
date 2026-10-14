@@ -5,6 +5,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../providers/data_providers.dart';
+import '../providers/reminder_sync.dart';
 import '../providers/timer_controller.dart';
 import 'goals/goal_feedback.dart';
 import 'feedback.dart';
@@ -16,7 +17,7 @@ import 'todo/todo_pager.dart';
 enum Section { todo, timer, goals, habits }
 
 /// Switches between the four drawer sections and owns app-wide timing:
-/// rollover on start, at midnight, and on resume (after reloading files,
+/// rollover and recurring tasks on start, at midnight, and on resume (after reloading files,
 /// since Syncthing or Obsidian may have changed them while we were away).
 ///
 /// Sections are swapped in place rather than pushed as routes, so every
@@ -67,7 +68,7 @@ class _AppShellState extends ConsumerState<AppShell>
   Future<void> _dayCheck() async {
     ref.read(todayProvider.notifier).refresh();
     _scheduleMidnight();
-    await runAction(context, ref.read(appDataProvider.notifier).rollover);
+    await runAction(context, ref.read(appDataProvider.notifier).startDay);
   }
 
   void _scheduleMidnight() {
@@ -116,6 +117,8 @@ class _AppShellState extends ConsumerState<AppShell>
     // a block that ended while the app was dead) without rebuilding the
     // shell on every timer change.
     ref.listen(timerProvider, (_, _) {});
+    // Keeps scheduled reminders in line with the tasks on disk.
+    ref.listen(reminderSyncProvider, (_, _) {});
     final drawer = AppDrawer(selected: _section, onSelect: _go);
     return PopScope(
       canPop: false,

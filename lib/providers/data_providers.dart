@@ -9,6 +9,8 @@ import '../domain/period.dart';
 import '../domain/period_doc.dart';
 import '../domain/task.dart';
 import '../domain/progress.dart' as progress;
+import '../domain/recurring.dart';
+import '../domain/recurring.dart' as recurring;
 import '../domain/task_rules.dart' as rules;
 import '../notifications/notification_service.dart';
 import '../storage/data_store.dart';
@@ -94,11 +96,15 @@ class AppDataController extends Notifier<AppData> {
     Period period, {
     required String title,
     int priority = 2,
+    DateTime? deadline,
+    DateTime? reminder,
   }) {
     final task = Task(
       id: newId('t'),
       title: title,
       priority: priority,
+      deadline: deadline,
+      reminder: reminder,
       created: _now(),
     );
     return _savePeriods([rules.upsertTask(state.period(period), task)]);
@@ -290,9 +296,60 @@ class AppDataController extends Notifier<AppData> {
     return reached;
   }
 
-  /// Moves unfinished tasks of past periods into the current ones.
-  Future<void> rollover() async {
+  // --------------------------------------------------------- recurring
+
+  /// Saves a new template and creates today's instance if it is due.
+  Future<void> createRecurring({
+    required String title,
+    required int priority,
+    required RepeatRule rule,
+    int? reminderMinute,
+  }) async {
+    final template = RecurringTemplate(
+      id: newId('r'),
+      title: title,
+      priority: priority,
+      rule: rule,
+      reminderMinute: reminderMinute,
+      created: _now(),
+    );
+    try {
+      await _store.saveRecurring(template);
+    } finally {
+      state = _store.data;
+    }
+    await generateRecurring();
+  }
+
+  /// Stops a series. Instances already created stay where they are.
+  Future<void> deleteRecurring(String id) async {
+    try {
+      await _store.deleteRecurring(id);
+    } finally {
+      state = _store.data;
+    }
+  }
+
+  Future<void> generateRecurring() async {
+    final (:docs, :templates) = recurring.generateRecurring(state, _now());
+    try {
+      // Instances first: if a write fails, the template isn't marked as
+      // generated and the next app open retries.
+      await _store.savePeriods(docs);
+      for (final t in templates) {
+        await _store.saveRecurring(t);
+      }
+    } finally {
+      state = _store.data;
+    }
+  }
+
+  /// Start-of-day bookkeeping: roll unfinished tasks forward, then create
+  /// recurring instances (in that order, so a rolled-over open instance
+  /// stops a duplicate from being created).
+  Future<void> startDay() async {
     final changed = rules.rollover(state, _now());
     if (changed.isNotEmpty) await _savePeriods(changed);
+    await generateRecurring();
   }
 }

@@ -12,6 +12,7 @@ import '../domain/habit.dart';
 import '../domain/ids.dart';
 import '../domain/period.dart';
 import '../domain/period_doc.dart';
+import '../domain/recurring.dart';
 import '../domain/target_ref.dart';
 import '../domain/task.dart';
 import 'yaml_io.dart';
@@ -274,6 +275,77 @@ Habit decodeHabit(String fallbackId, String text) {
       'goal',
       'goal_amount',
       'created',
+    }),
+  );
+}
+
+// --------------------------------------------------------------- recurring
+
+String encodeRecurring(RecurringTemplate t) => writeMarkdown(
+  _withExtra({
+    'id': t.id,
+    'title': t.title,
+    'priority': t.priority,
+    'rule': {
+      'every': t.rule.every.name,
+      if (t.rule.every == RepeatEvery.weekdays)
+        'days': (t.rule.weekdays.toList()..sort()),
+      if (t.rule.dayOfMonth != null) 'day': t.rule.dayOfMonth,
+    },
+    'link': _ref(t.link),
+    'reminder': t.reminderMinute == null
+        ? null
+        : '${(t.reminderMinute! ~/ 60).toString().padLeft(2, '0')}:'
+              '${(t.reminderMinute! % 60).toString().padLeft(2, '0')}',
+    'created': _time(t.created),
+    'last_generated': t.lastGenerated,
+  }, t.extra),
+  '',
+);
+
+RecurringTemplate decodeRecurring(String fallbackId, String text) {
+  final (:frontmatter, body: _) = readMarkdown(text);
+  final m = frontmatter;
+  final rule = m['rule'];
+  if (rule is! Map) throw const FormatException('Recurring task needs a rule');
+  final days = [
+    for (final d in _list(rule['days']))
+      if (d is int && d >= 1 && d <= 7) d,
+  ];
+  final day = rule['day'];
+  final reminder = RegExp(r'^(\d{1,2}):(\d{2})$')
+      .firstMatch('${m['reminder']}');
+  return RecurringTemplate(
+    id: _str(m['id']) ?? fallbackId,
+    title: _str(m['title']) ?? '',
+    priority: switch (m['priority']) {
+      final int p when p >= 1 && p <= 3 => p,
+      _ => 2,
+    },
+    rule: switch (rule['every']) {
+      'day' => const RepeatRule.daily(),
+      'weekdays' when days.isNotEmpty => RepeatRule.weekdays(days.toSet()),
+      'week' => const RepeatRule.weekly(),
+      'month' => RepeatRule.monthly(
+        day is int && day >= 1 && day <= 31 ? day : null,
+      ),
+      _ => throw FormatException('Unknown repeat rule', '$rule'),
+    },
+    link: _parseRef(m['link']),
+    reminderMinute: reminder == null
+        ? null
+        : int.parse(reminder[1]!) * 60 + int.parse(reminder[2]!),
+    created: _parseTime(m['created']) ?? DateTime.now(),
+    lastGenerated: _str(m['last_generated']),
+    extra: _extra(m, const {
+      'id',
+      'title',
+      'priority',
+      'rule',
+      'link',
+      'reminder',
+      'created',
+      'last_generated',
     }),
   );
 }

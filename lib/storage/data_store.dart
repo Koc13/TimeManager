@@ -12,6 +12,7 @@ import '../domain/goal.dart';
 import '../domain/habit.dart';
 import '../domain/period.dart';
 import '../domain/period_doc.dart';
+import '../domain/recurring.dart';
 import 'codecs.dart';
 import 'yaml_io.dart';
 
@@ -73,6 +74,7 @@ class DataStore {
     final errors = <String, String>{};
     final goals = <String, Goal>{};
     final habits = <String, Habit>{};
+    final recurring = <String, RecurringTemplate>{};
     final periods = <String, PeriodDoc>{};
 
     await for (final (path, text) in _markdownFiles(conflicts)) {
@@ -84,6 +86,9 @@ class DataStore {
         } else if (path.startsWith('habits/')) {
           final habit = decodeHabit(name, text);
           habits[habit.id] = habit;
+        } else if (path.startsWith('recurring/')) {
+          final template = decodeRecurring(name, text);
+          recurring[template.id] = template;
         } else if (path.startsWith('periods/')) {
           final period = Period.tryParse(name);
           if (period == null) continue; // A user's own note; not ours.
@@ -99,11 +104,16 @@ class DataStore {
 
     this.conflicts = conflicts;
     loadErrors = errors;
-    _data = AppData(goals: goals, habits: habits, periods: periods);
+    _data = AppData(
+      goals: goals,
+      habits: habits,
+      recurring: recurring,
+      periods: periods,
+    );
   }
 
   Stream<(String, String)> _markdownFiles(List<String> conflicts) async* {
-    for (final dir in const ['goals', 'habits', 'periods']) {
+    for (final dir in const ['goals', 'habits', 'recurring', 'periods']) {
       final directory = Directory('$root/$dir');
       if (!await directory.exists()) continue;
       await for (final entity in directory.list(recursive: true)) {
@@ -144,6 +154,16 @@ class DataStore {
   Future<void> deleteHabit(String id) async {
     await _delete('habits/$id.md');
     _data = _data.withoutHabit(id);
+  }
+
+  Future<void> saveRecurring(RecurringTemplate template) async {
+    await _save('recurring/${template.id}.md', encodeRecurring(template));
+    _data = _data.withRecurring(template);
+  }
+
+  Future<void> deleteRecurring(String id) async {
+    await _delete('recurring/$id.md');
+    _data = _data.withoutRecurring(id);
   }
 
   Future<void> _delete(String path) async {

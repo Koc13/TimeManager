@@ -293,4 +293,23 @@ void main() {
     expect(find.text('Overdue · Wed 14 Oct 08:00'), findsOneWidget);
     expect(find.text('Due Wed 14 Oct 17:00'), findsOneWidget);
   });
+
+  testWidgets('a Syncthing conflict copy shows a warning banner', (
+    tester,
+  ) async {
+    await tester.runAsync(() async {
+      Directory('${dir.path}/periods/2026/10').createSync(recursive: true);
+      File('${dir.path}/periods/2026/10/2026-10-14.sync-conflict-20261014-1.md')
+          .writeAsStringSync('---\n---\n');
+      await store.reload();
+    });
+    await pumpApp(tester);
+    expect(find.text('1 sync conflict in your data folder'), findsOneWidget);
+    await tester.tap(find.text('1 sync conflict in your data folder'));
+    await tester.pumpAndSettle();
+    expect(
+      find.textContaining('2026-10-14.sync-conflict-20261014-1.md'),
+      findsOneWidget,
+    );
+  });
 }

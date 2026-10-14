@@ -64,6 +64,16 @@ class ReachedGoals extends Notifier<List<Goal>> {
   }
 }
 
+/// Problems found in the data folder on the last load: Syncthing conflict
+/// copies, and files that couldn't be read (they are read-only until fixed).
+/// Recomputed whenever the data changes, which includes every reload.
+final storeIssuesProvider =
+    Provider<({List<String> conflicts, Map<String, String> unreadable})>((ref) {
+      ref.watch(appDataProvider);
+      final store = ref.read(dataStoreProvider);
+      return (conflicts: store.conflicts, unreadable: store.loadErrors);
+    });
+
 /// The in-memory data set. Every change goes through this controller: it
 /// writes the files first, then publishes the store's new state, so the UI
 /// never shows something that isn't on disk.
@@ -81,6 +91,14 @@ class AppDataController extends Notifier<AppData> {
   Future<void> reload() async {
     await _store.reload();
     state = _store.data;
+  }
+
+  /// Reloads only if [paths] were changed by someone else (the folder
+  /// watcher also sees the app's own writes). Returns whether it reloaded.
+  Future<bool> reloadIfChanged(Set<String> paths) async {
+    if (!await _store.changedOnDisk(paths)) return false;
+    await reload();
+    return true;
   }
 
   Future<void> _savePeriods(Iterable<PeriodDoc> docs) async {

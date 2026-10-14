@@ -54,6 +54,7 @@ class _TimeManagerAppState extends State<TimeManagerApp> {
     if (root != null) {
       try {
         _store = await DataStore.open(root);
+        debugPrint('Loaded $root in ${_store!.lastLoadTime.inMilliseconds} ms');
       } catch (e) {
         _error = 'Could not open $root: $e';
       }

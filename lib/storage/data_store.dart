@@ -67,8 +67,13 @@ class DataStore {
     if (version != formatVersion) throw UnsupportedFormatException(version);
   }
 
+  /// How long the last full load took; logged so it's visible when an
+  /// index (optional) starts being worth it.
+  Duration lastLoadTime = Duration.zero;
+
   /// Re-reads every file. Edits made outside the app win.
   Future<void> reload() async {
+    final stopwatch = Stopwatch()..start();
     _known.clear();
     final conflicts = <String>[];
     final errors = <String, String>{};
@@ -104,6 +109,7 @@ class DataStore {
 
     this.conflicts = conflicts;
     loadErrors = errors;
+    lastLoadTime = stopwatch.elapsed;
     _data = AppData(
       goals: goals,
       habits: habits,
@@ -112,21 +118,52 @@ class DataStore {
     );
   }
 
+  /// Every data file's relative path and text. Paths are listed first and
+  /// then read in parallel batches: on Android each file read goes through
+  /// the shared-storage (FUSE) layer, where waiting on one file at a time
+  /// is the slow part.
   Stream<(String, String)> _markdownFiles(List<String> conflicts) async* {
+    final paths = <String>[];
     for (final dir in const ['goals', 'habits', 'recurring', 'periods']) {
       final directory = Directory('$root/$dir');
       if (!await directory.exists()) continue;
       await for (final entity in directory.list(recursive: true)) {
         if (entity is! File) continue;
         final path = entity.path.substring(root.length + 1);
-        final name = path.split('/').last;
-        if (name.contains('.sync-conflict-')) {
+        // Hidden files and folders: our temp files, Obsidian's and
+        // Syncthing's own folders (.trash, .stversions).
+        if (path.split('/').any((part) => part.startsWith('.'))) continue;
+        if (path.contains('.sync-conflict-')) {
           conflicts.add(path);
-        } else if (name.endsWith('.md') && !name.startsWith('.')) {
-          yield (path, await entity.readAsString());
+        } else if (path.endsWith('.md')) {
+          paths.add(path);
         }
       }
     }
+    const batch = 32;
+    for (var i = 0; i < paths.length; i += batch) {
+      final chunk = paths.skip(i).take(batch).toList();
+      final texts = await Future.wait(
+        chunk.map((p) => File('$root/$p').readAsString()),
+      );
+      for (var j = 0; j < chunk.length; j++) {
+        yield (chunk[j], texts[j]);
+      }
+    }
+  }
+
+  /// Whether any of [paths] (relative) differs from what this store last
+  /// read or wrote, i.e. was changed by someone else. Lets the watcher
+  /// ignore the app's own writes instead of reloading after each one.
+  Future<bool> changedOnDisk(Iterable<String> paths) async {
+    for (final path in paths) {
+      if (path.contains('.sync-conflict-')) return true;
+      if (!path.endsWith('.md')) return true; // e.g. a new folder
+      final file = File('$root/$path');
+      final text = await file.exists() ? await file.readAsString() : null;
+      if (text != _known[path]) return true;
+    }
+    return false;
   }
 
   Future<void> savePeriods(Iterable<PeriodDoc> docs) async {

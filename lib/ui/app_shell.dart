@@ -5,6 +5,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../providers/data_providers.dart';
+import '../providers/folder_watch.dart';
 import '../providers/reminder_sync.dart';
 import '../providers/timer_controller.dart';
 import 'goals/goal_feedback.dart';
@@ -119,16 +120,27 @@ class _AppShellState extends ConsumerState<AppShell>
     ref.listen(timerProvider, (_, _) {});
     // Keeps scheduled reminders in line with the tasks on disk.
     ref.listen(reminderSyncProvider, (_, _) {});
+    // Reloads when Syncthing or Obsidian change files while the app is open.
+    ref.listen(folderWatchProvider, (_, _) {});
+    final issues = ref.watch(storeIssuesProvider);
+    final hasIssues =
+        issues.conflicts.isNotEmpty || issues.unreadable.isNotEmpty;
     final drawer = AppDrawer(selected: _section, onSelect: _go);
     return PopScope(
       canPop: false,
       onPopInvokedWithResult: _onBack,
-      child: switch (_section) {
-        Section.todo => TodoPager(scaffoldKey: _scaffold, drawer: drawer),
-        Section.timer => TimerScreen(scaffoldKey: _scaffold, drawer: drawer),
-        Section.goals => GoalsScreen(scaffoldKey: _scaffold, drawer: drawer),
-        Section.habits => HabitsScreen(scaffoldKey: _scaffold, drawer: drawer),
-      },
+      child: _WithIssues(
+        show: hasIssues,
+        child: switch (_section) {
+          Section.todo => TodoPager(scaffoldKey: _scaffold, drawer: drawer),
+          Section.timer => TimerScreen(scaffoldKey: _scaffold, drawer: drawer),
+          Section.goals => GoalsScreen(scaffoldKey: _scaffold, drawer: drawer),
+          Section.habits => HabitsScreen(
+            scaffoldKey: _scaffold,
+            drawer: drawer,
+          ),
+        },
+      ),
     );
   }
 }
@@ -158,6 +170,121 @@ class AppDrawer extends StatelessWidget {
         for (final (_, icon, label) in items)
           NavigationDrawerDestination(icon: Icon(icon), label: Text(label)),
       ],
+    );
+  }
+}
+
+/// A warning strip above every section while the data folder has Syncthing
+/// conflict copies or files that couldn't be read. It stays until
+/// the files are fixed, since the app can't fix them itself.
+class _WithIssues extends StatelessWidget {
+  const _WithIssues({required this.show, required this.child});
+
+  final bool show;
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    if (!show) return child;
+    return Column(
+      children: [
+        const IssuesBanner(),
+        // The section's own app bar must not add the status-bar inset again.
+        Expanded(
+          child: MediaQuery.removePadding(
+            context: context,
+            removeTop: true,
+            child: child,
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class IssuesBanner extends ConsumerWidget {
+  const IssuesBanner({super.key});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final (:conflicts, :unreadable) = ref.watch(storeIssuesProvider);
+    final scheme = Theme.of(context).colorScheme;
+    final parts = [
+      if (conflicts.isNotEmpty)
+        '${conflicts.length} sync conflict${conflicts.length == 1 ? '' : 's'}',
+      if (unreadable.isNotEmpty)
+        '${unreadable.length} unreadable file${unreadable.length == 1 ? '' : 's'}',
+    ];
+    return Material(
+      color: scheme.errorContainer,
+      child: InkWell(
+        onTap: () => showDialog<void>(
+          context: context,
+          builder: (context) => AlertDialog(
+            title: const Text('Check these files'),
+            content: SingleChildScrollView(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  if (conflicts.isNotEmpty) ...[
+                    const Text(
+                      'Syncthing kept two versions of these. Merge what you '
+                      'need into the original file and delete the conflict '
+                      'copy. The app ignores conflict copies.',
+                    ),
+                    const SizedBox(height: 8),
+                    for (final path in conflicts) SelectableText('• $path'),
+                    const SizedBox(height: 16),
+                  ],
+                  if (unreadable.isNotEmpty) ...[
+                    const Text(
+                      'These could not be read, so the app will not write to '
+                      'them until they are fixed in a text editor:',
+                    ),
+                    const SizedBox(height: 8),
+                    for (final MapEntry(key: path, value: error)
+                        in unreadable.entries)
+                      SelectableText('• $path\n   $error'),
+                  ],
+                ],
+              ),
+            ),
+            actions: [
+              TextButton(
+                onPressed: () {
+                  Navigator.pop(context);
+                  runAction(context, ref.read(appDataProvider.notifier).reload);
+                },
+                child: const Text('Reload'),
+              ),
+              FilledButton(
+                onPressed: () => Navigator.pop(context),
+                child: const Text('OK'),
+              ),
+            ],
+          ),
+        ),
+        // The colour runs under the status bar; the content stays below it.
+        child: SafeArea(
+          bottom: false,
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+            child: Row(
+              children: [
+                Icon(Icons.warning_amber, color: scheme.onErrorContainer),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Text(
+                    '${parts.join(' and ')} in your data folder',
+                    style: TextStyle(color: scheme.onErrorContainer),
+                  ),
+                ),
+                Icon(Icons.chevron_right, color: scheme.onErrorContainer),
+              ],
+            ),
+          ),
+        ),
+      ),
     );
   }
 }

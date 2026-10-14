@@ -136,7 +136,7 @@ void main() {
     expect(find.byType(NavigationDrawer), findsOneWidget);
     await tester.tap(find.text('Goals'));
     await tester.pumpAndSettle();
-    expect(find.text('Coming soon'), findsOneWidget);
+    expect(find.text('No active goals'), findsOneWidget);
   });
 
   testWidgets('Back closes the drawer, then leaves a section, then exits', (

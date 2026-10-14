@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../domain/aggregation.dart';
 import '../../domain/period.dart';
 import '../../domain/task.dart';
 import '../../providers/data_providers.dart';
@@ -21,7 +22,9 @@ class TaskTile extends ConsumerWidget {
     final deadline = task.deadline;
     final overdue = deadline != null && deadline.isBefore(now);
 
+    final link = task.link;
     final details = [
+      if (link != null) '→ ${targetName(ref.watch(appDataProvider), link)}',
       if (deadline != null)
         (overdue ? 'Overdue · ' : 'Due ') + dateTimeLabel(deadline),
       if (task.rolledOver > 0) '↻ ${task.rolledOver}',

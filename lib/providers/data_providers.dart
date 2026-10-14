@@ -1,10 +1,13 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../domain/activity.dart';
 import '../domain/app_data.dart';
+import '../domain/goal.dart';
 import '../domain/ids.dart';
 import '../domain/period.dart';
 import '../domain/period_doc.dart';
 import '../domain/task.dart';
+import '../domain/progress.dart' as progress;
 import '../domain/task_rules.dart' as rules;
 import '../storage/data_store.dart';
 
@@ -99,6 +102,93 @@ class AppDataController extends Notifier<AppData> {
     final doc = state.period(period);
     if (doc.journal == text) return Future.value();
     return _savePeriods([doc.copyWith(journal: text)]);
+  }
+
+  // ------------------------------------------------------------- goals
+
+  Future<Goal> createGoal({
+    required String title,
+    required GoalKind kind,
+    num? target,
+    String? unit,
+    String? parent,
+  }) async {
+    final goal = Goal(
+      id: newId('g'),
+      title: title,
+      kind: kind,
+      target: target,
+      unit: unit,
+      parent: parent,
+      created: _now(),
+    );
+    await saveGoal(goal);
+    return goal;
+  }
+
+  Future<void> saveGoal(Goal goal) async {
+    try {
+      await _store.saveGoal(goal);
+    } finally {
+      state = _store.data;
+    }
+  }
+
+  Future<void> deleteGoal(String id) async {
+    try {
+      await _store.deleteGoal(id);
+    } finally {
+      state = _store.data;
+    }
+  }
+
+  /// Completed goals get today's date; any other status clears it.
+  Future<void> setGoalStatus(Goal goal, GoalStatus status) => saveGoal(
+    goal.copyWith(
+      status: status,
+      completed: status == GoalStatus.completed ? _now() : null,
+    ),
+  );
+
+  /// Records a log in today's file. Returns goals this pushed past their
+  /// target, which are completed automatically (the UI offers Undo).
+  Future<List<Goal>> addGoalLog({
+    required String goal,
+    num? amount,
+    String? unit,
+    String? source,
+  }) {
+    final log = GoalLog(
+      id: newId('l'),
+      goal: goal,
+      amount: amount,
+      unit: unit,
+      source: source,
+      at: _now(),
+    );
+    final day = state.period(Day(_now()));
+    return _recordActivity([
+      day.copyWith(goalLogs: [...day.goalLogs, log]),
+    ]);
+  }
+
+  Future<void> deleteGoalLog(Day day, String id) {
+    final doc = state.period(day);
+    return _savePeriods([
+      doc.copyWith(goalLogs: doc.goalLogs.where((l) => l.id != id).toList()),
+    ]);
+  }
+
+  /// Saves activity (logs, habit entries, sessions) and auto-completes
+  /// measurable goals that it pushed over their target.
+  Future<List<Goal>> _recordActivity(List<PeriodDoc> docs) async {
+    final before = state;
+    await _savePeriods(docs);
+    final reached = progress.newlyReachedTargets(before, state);
+    for (final goal in reached) {
+      await setGoalStatus(goal, GoalStatus.completed);
+    }
+    return reached;
   }
 
   /// Moves unfinished tasks of past periods into the current ones.

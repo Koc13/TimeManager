@@ -31,6 +31,13 @@ class HabitEntry {
   final String habit;
   final Object value;
   final Map<String, Object?> extra;
+
+  /// The value as a number: a yes/no check is 1, unchecked is 0.
+  num get amount => switch (value) {
+    true => 1,
+    final num n => n,
+    _ => 0,
+  };
 }
 
 /// A dated progress entry for a goal: an amount (measurable goals) or a

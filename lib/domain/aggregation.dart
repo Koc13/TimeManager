@@ -67,7 +67,7 @@ PeriodActivity activityIn(AppData data, Period period) {
       );
     }
     for (final e in day.habitEntries) {
-      final value = habitValue(e);
+      final value = e.amount;
       if (value == 0) continue; // an unchecked/zero entry isn't activity
       final prev = habits[e.habit] ?? (days: 0, total: 0);
       habits[e.habit] = (days: prev.days + 1, total: prev.total + value);
@@ -87,13 +87,6 @@ PeriodActivity activityIn(AppData data, Period period) {
     goalLogs: logs..sort((a, b) => a.at.compareTo(b.at)),
   );
 }
-
-/// A habit entry as a number: a yes/no check counts 1, false counts 0.
-num habitValue(HabitEntry entry) => switch (entry.value) {
-  true => 1,
-  final num n => n,
-  _ => 0,
-};
 
 /// Display name for a target; records may have been deleted since.
 String targetName(AppData data, TargetRef target) => switch (target.type) {

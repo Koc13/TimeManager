@@ -136,6 +136,23 @@ class DataStore {
     _data = _data.withHabit(habit);
   }
 
+  Future<void> deleteGoal(String id) async {
+    await _delete('goals/$id.md');
+    _data = _data.withoutGoal(id);
+  }
+
+  Future<void> deleteHabit(String id) async {
+    await _delete('habits/$id.md');
+    _data = _data.withoutHabit(id);
+  }
+
+  Future<void> _delete(String path) async {
+    final file = File('$root/$path');
+    if (await file.exists()) await file.delete();
+    _known.remove(path);
+    loadErrors.remove(path);
+  }
+
   Future<void> _save(String path, String text) async {
     if (loadErrors.containsKey(path)) {
       throw FileSystemException(

@@ -38,4 +38,10 @@ class AppData {
     habits: {...habits, habit.id: habit},
     periods: periods,
   );
+
+  AppData withoutGoal(String id) =>
+      AppData(goals: {...goals}..remove(id), habits: habits, periods: periods);
+
+  AppData withoutHabit(String id) =>
+      AppData(goals: goals, habits: {...habits}..remove(id), periods: periods);
 }

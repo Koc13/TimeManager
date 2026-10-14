@@ -6,7 +6,7 @@ import '../../providers/data_providers.dart';
 import '../feedback.dart';
 import '../format.dart';
 import 'task_editor.dart';
-import 'task_list.dart';
+import 'period_page.dart';
 
 /// Daily, Weekly and Monthly ToDo side by side in a horizontal PageView.
 ///
@@ -127,7 +127,7 @@ class _TodoPagerState extends ConsumerState<TodoPager> {
           // notifications at the first page on every platform.
           physics: const PageScrollPhysics(parent: ClampingScrollPhysics()),
           onPageChanged: (page) => setState(() => _page = page),
-          children: [for (final period in _periods) TaskList(period: period)],
+          children: [for (final period in _periods) PeriodPage(period: period)],
         ),
       ),
       floatingActionButton: FloatingActionButton(

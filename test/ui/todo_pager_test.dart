@@ -68,8 +68,7 @@ void main() {
 
     await tester.tap(find.byType(Checkbox));
     await settleIo(tester);
-    expect(find.text('Throw trash out'), findsNothing);
-    expect(find.text('1 done'), findsOneWidget);
+    expect(find.text('Nothing to do'), findsOneWidget);
     expect(
       File('${dir.path}/$todayFile').readAsStringSync(),
       contains('done_at: 2026-10-14T09:00:00'),
@@ -176,5 +175,66 @@ void main() {
 
     await back();
     expect(platformCalls, contains('SystemNavigator.pop'));
+  });
+
+  testWidgets('checked tasks show on the Done page and can be unchecked', (
+    tester,
+  ) async {
+    await tester.runAsync(
+      () => store.savePeriods([
+        PeriodDoc(
+          period: const Week(2026, 42),
+          tasks: [Task(id: 't_1', title: 'Weekly chore', created: now)],
+        ),
+      ]),
+    );
+    await pumpApp(tester);
+    // Check it off on the weekly list.
+    await tester.fling(find.byType(PageView), const Offset(-500, 0), 1000);
+    await tester.pumpAndSettle();
+    await tester.tap(find.byType(Checkbox));
+    await settleIo(tester);
+
+    // It shows on today's Done page, marked as coming from the week list.
+    await tester.fling(find.byType(PageView), const Offset(500, 0), 1000);
+    await tester.pumpAndSettle();
+    await tester.scrollUntilVisible(
+      find.text('Weekly chore'),
+      300,
+      scrollable: find.byType(Scrollable).at(1),
+    );
+    expect(find.textContaining('from Week 42'), findsOneWidget);
+
+    // Unchecking it on the Done page puts it back on the weekly list.
+    await tester.tap(
+      find.descendant(
+        of: find.widgetWithText(ListTile, 'Weekly chore'),
+        matching: find.byType(Checkbox),
+      ),
+    );
+    await settleIo(tester);
+    expect(find.text('Weekly chore'), findsNothing);
+    expect(
+      store.data.period(const Week(2026, 42)).tasks.single.isDone,
+      isFalse,
+    );
+  });
+
+  testWidgets('the journal saves into the file body', (tester) async {
+    await pumpApp(tester);
+    await tester.scrollUntilVisible(
+      find.byType(TextField),
+      300,
+      scrollable: find.byType(Scrollable).at(1),
+    );
+    await tester.enterText(find.byType(TextField), 'Good day.\n\n- shipped the pager');
+    await tester.pump(const Duration(seconds: 1)); // debounce
+    await settleIo(tester);
+    final text = File('${dir.path}/$todayFile').readAsStringSync();
+    expect(text, endsWith('---\nGood day.\n\n- shipped the pager'));
+
+    await tester.tap(find.byTooltip('Preview'));
+    await tester.pumpAndSettle();
+    expect(find.text('shipped the pager'), findsOneWidget);
   });
 }

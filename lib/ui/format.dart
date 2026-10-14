@@ -1,3 +1,5 @@
+import '../domain/aggregation.dart';
+import '../domain/habit.dart';
 import '../domain/period.dart';
 
 const _weekdays = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
@@ -31,3 +33,25 @@ String timeLabel(DateTime t) =>
     '${t.hour.toString().padLeft(2, '0')}:${t.minute.toString().padLeft(2, '0')}';
 
 String dateTimeLabel(DateTime t) => '${dayLabel(t)} ${timeLabel(t)}';
+
+/// "30 pages" or "2.5 km": whole numbers without a trailing ".0".
+String amountLabel(num n, String? unit) {
+  final value = n == n.roundToDouble() ? '${n.round()}' : '$n';
+  return unit == null ? value : '$value $unit';
+}
+
+/// One habit's line on a Done page. A day shows the value ("Reading: 30
+/// pages", "Gym ✓"); longer periods add the day count.
+String habitSummary(Habit? habit, HabitTotal total, {required bool singleDay}) {
+  final name = habit?.title ?? '(deleted habit)';
+  final days = total.days == 1 ? '1 day' : '${total.days} days';
+  if (habit?.kind == HabitKind.measurable) {
+    final amount = amountLabel(total.total, habit!.unit);
+    return singleDay ? '$name: $amount' : '$name: $amount on $days';
+  }
+  return singleDay ? '$name ✓' : '$name: $days';
+}
+
+/// "70 min" / "1 h 10 min".
+String minutesLabel(int minutes) =>
+    minutes < 60 ? '$minutes min' : '${minutes ~/ 60} h ${minutes % 60} min';

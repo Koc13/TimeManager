@@ -95,6 +95,12 @@ class AppDataController extends Notifier<AppData> {
     ]);
   }
 
+  Future<void> setJournal(Period period, String text) {
+    final doc = state.period(period);
+    if (doc.journal == text) return Future.value();
+    return _savePeriods([doc.copyWith(journal: text)]);
+  }
+
   /// Moves unfinished tasks of past periods into the current ones.
   Future<void> rollover() async {
     final changed = rules.rollover(state, _now());

@@ -3,45 +3,10 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../domain/period.dart';
 import '../../domain/task.dart';
-import '../../domain/task_rules.dart';
 import '../../providers/data_providers.dart';
 import '../feedback.dart';
 import '../format.dart';
 import 'task_editor.dart';
-
-/// One period's open tasks. Checked tasks leave the list (they go to the
-/// period's Done page).
-class TaskList extends ConsumerWidget {
-  const TaskList({super.key, required this.period});
-
-  final Period period;
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final doc = ref.watch(appDataProvider.select((d) => d.period(period)));
-    final open = openTasksSorted(doc.tasks);
-    final done = doc.tasks.length - open.length;
-    final muted = TextStyle(color: Theme.of(context).colorScheme.outline);
-
-    return ListView(
-      // Room for the FAB below the last row.
-      padding: const EdgeInsets.only(bottom: 88),
-      children: [
-        if (open.isEmpty)
-          Padding(
-            padding: const EdgeInsets.all(32),
-            child: Center(child: Text('Nothing to do', style: muted)),
-          ),
-        for (final task in open) TaskTile(period: period, task: task),
-        if (done > 0)
-          Padding(
-            padding: const EdgeInsets.all(16),
-            child: Center(child: Text('$done done', style: muted)),
-          ),
-      ],
-    );
-  }
-}
 
 class TaskTile extends ConsumerWidget {
   const TaskTile({super.key, required this.period, required this.task});

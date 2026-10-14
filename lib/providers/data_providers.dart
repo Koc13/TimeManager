@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../domain/activity.dart';
 import '../domain/app_data.dart';
 import '../domain/goal.dart';
+import '../domain/habit.dart';
 import '../domain/ids.dart';
 import '../domain/period.dart';
 import '../domain/period_doc.dart';
@@ -177,6 +178,67 @@ class AppDataController extends Notifier<AppData> {
     return _savePeriods([
       doc.copyWith(goalLogs: doc.goalLogs.where((l) => l.id != id).toList()),
     ]);
+  }
+
+  // ------------------------------------------------------------ habits
+
+  Future<void> saveHabit(Habit habit) async {
+    try {
+      await _store.saveHabit(habit);
+    } finally {
+      state = _store.data;
+    }
+  }
+
+  Future<void> createHabit({
+    required String title,
+    required HabitKind kind,
+    String? unit,
+    String? goal,
+    num goalAmount = 1,
+  }) => saveHabit(
+    Habit(
+      id: newId('h'),
+      title: title,
+      kind: kind,
+      unit: unit,
+      goal: goal,
+      goalAmount: goalAmount,
+      created: _now(),
+    ),
+  );
+
+  Future<void> deleteHabit(String id) async {
+    try {
+      await _store.deleteHabit(id);
+    } finally {
+      state = _store.data;
+    }
+  }
+
+  /// Sets a habit's entry for [day]: `true` or a number records it, `null`
+  /// removes it. One entry per habit per day, so this replaces any other.
+  /// Returns goals this pushed past their target (see [_recordActivity]).
+  Future<List<Goal>> setHabitEntry(Day day, String habit, Object? value) {
+    final doc = state.period(day);
+    final entries = [...doc.habitEntries];
+    final index = entries.indexWhere((e) => e.habit == habit);
+    if (value == null) {
+      if (index == -1) return Future.value(const []);
+      entries.removeAt(index);
+    } else {
+      final entry = HabitEntry(
+        habit: habit,
+        value: value,
+        extra: index == -1 ? const {} : entries[index].extra,
+      );
+      if (index == -1) {
+        entries.add(entry);
+      } else {
+        entries[index] = entry;
+      }
+    }
+    return _recordActivity([doc.copyWith(habitEntries: entries)]);
   }
 
   /// Saves activity (logs, habit entries, sessions) and auto-completes

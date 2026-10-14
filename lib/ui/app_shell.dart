@@ -7,6 +7,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../providers/data_providers.dart';
 import 'feedback.dart';
 import 'goals/goals_screen.dart';
+import 'habits/habits_screen.dart';
 import 'todo/todo_pager.dart';
 
 enum Section { todo, timer, goals, habits }
@@ -115,12 +116,7 @@ class _AppShellState extends ConsumerState<AppShell>
           milestone: 7,
         ),
         Section.goals => GoalsScreen(scaffoldKey: _scaffold, drawer: drawer),
-        Section.habits => _NotYet(
-          scaffoldKey: _scaffold,
-          drawer: drawer,
-          title: 'Habits',
-          milestone: 6,
-        ),
+        Section.habits => HabitsScreen(scaffoldKey: _scaffold, drawer: drawer),
       },
     );
   }

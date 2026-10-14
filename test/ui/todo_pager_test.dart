@@ -168,7 +168,7 @@ void main() {
     await tester.pumpAndSettle();
     await tester.tap(find.text('Habits'));
     await tester.pumpAndSettle();
-    expect(find.text('Coming soon'), findsOneWidget);
+    expect(find.text('No habits yet'), findsOneWidget);
     await back();
     expect(find.text('Wed 14 Oct'), findsOneWidget);
     expect(platformCalls, isNot(contains('SystemNavigator.pop')));

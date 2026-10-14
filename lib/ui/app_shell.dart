@@ -5,9 +5,12 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../providers/data_providers.dart';
+import '../providers/timer_controller.dart';
+import 'goals/goal_feedback.dart';
 import 'feedback.dart';
 import 'goals/goals_screen.dart';
 import 'habits/habits_screen.dart';
+import 'timer/timer_screen.dart';
 import 'todo/todo_pager.dart';
 
 enum Section { todo, timer, goals, habits }
@@ -55,6 +58,8 @@ class _AppShellState extends ConsumerState<AppShell>
       runAction(context, () async {
         await ref.read(appDataProvider.notifier).reload();
         await _dayCheck();
+        // The timer may have ended while the app was in the background.
+        await ref.read(timerProvider.notifier).tick();
       });
     }
   }
@@ -103,18 +108,21 @@ class _AppShellState extends ConsumerState<AppShell>
 
   @override
   Widget build(BuildContext context) {
+    // Goals completed by a timer session that ended off-screen.
+    ref.listen(reachedGoalsProvider, (_, reached) {
+      announceReached(ScaffoldMessenger.maybeOf(context), ref, reached);
+    });
+    // Listened to here so the timer is restored at start-up (and can finish
+    // a block that ended while the app was dead) without rebuilding the
+    // shell on every timer change.
+    ref.listen(timerProvider, (_, _) {});
     final drawer = AppDrawer(selected: _section, onSelect: _go);
     return PopScope(
       canPop: false,
       onPopInvokedWithResult: _onBack,
       child: switch (_section) {
         Section.todo => TodoPager(scaffoldKey: _scaffold, drawer: drawer),
-        Section.timer => _NotYet(
-          scaffoldKey: _scaffold,
-          drawer: drawer,
-          title: 'Timer',
-          milestone: 7,
-        ),
+        Section.timer => TimerScreen(scaffoldKey: _scaffold, drawer: drawer),
         Section.goals => GoalsScreen(scaffoldKey: _scaffold, drawer: drawer),
         Section.habits => HabitsScreen(scaffoldKey: _scaffold, drawer: drawer),
       },
@@ -149,26 +157,4 @@ class AppDrawer extends StatelessWidget {
       ],
     );
   }
-}
-
-class _NotYet extends StatelessWidget {
-  const _NotYet({
-    required this.scaffoldKey,
-    required this.drawer,
-    required this.title,
-    required this.milestone,
-  });
-
-  final GlobalKey<ScaffoldState> scaffoldKey;
-  final Widget drawer;
-  final String title;
-  final int milestone;
-
-  @override
-  Widget build(BuildContext context) => Scaffold(
-    key: scaffoldKey,
-    drawer: drawer,
-    appBar: AppBar(title: Text(title)),
-    body: Center(child: Text('Coming soon')),
-  );
 }

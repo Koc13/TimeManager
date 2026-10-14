@@ -11,6 +11,13 @@
          Syncthing can reach it, and the app reads it with plain dart:io.
          Fine for a sideloaded app; the Play Store restricts it. -->
     <uses-permission android:name="android.permission.MANAGE_EXTERNAL_STORAGE"/>
+    <!-- Exact alarms for the timer's end and task reminders. USE_EXACT_ALARM
+         is granted automatically (API 33+); the Play Store only allows it for
+         alarm/calendar apps, which doesn't matter for a sideloaded app.
+         SCHEDULE_EXACT_ALARM covers API 31-32. -->
+    <uses-permission android:name="android.permission.USE_EXACT_ALARM"/>
+    <uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM"
+        android:maxSdkVersion="32"/>
     <application
         android:label="Time Manager"
         android:name="${applicationName}"

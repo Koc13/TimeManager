@@ -1,69 +1,108 @@
-import 'package:flutter/foundation.dart'
-    show TargetPlatform, defaultTargetPlatform;
+import 'dart:io';
+
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:flutter_timezone/flutter_timezone.dart';
 import 'package:timezone/data/latest_all.dart' as tz_data;
 import 'package:timezone/timezone.dart' as tz;
 
-/// Thin wrapper around flutter_local_notifications - owns plugin init,
-/// permission request, and (later) scheduling. Deliberately no
-/// habit/task/goal-specific logic here - that's a caller's job (see
-/// habit_reminder_scheduler.dart), the same "generic infra vs. feature
-/// logic that composes it" split every repository in this app already
-/// draws.
-class NotificationService {
+/// What the app needs from notifications. An interface so tests can record
+/// calls instead of talking to the platform plugin.
+abstract interface class Notifications {
+  /// Ongoing, non-dismissable countdown while a timer runs. Android draws
+  /// the countdown itself (a chronometer), so it keeps ticking even if the
+  /// app is killed.
+  Future<void> showTimerRunning({required String title, required DateTime end});
+
+  /// Replaces the running notification while paused (no countdown).
+  Future<void> showTimerPaused({required String title, required String text});
+
+  /// The alarm at the end of a work block or break. Fires even if the app
+  /// is not running.
+  Future<void> scheduleTimerEnd({
+    required String title,
+    required String body,
+    required DateTime at,
+  });
+
+  /// Removes both timer notifications and the scheduled end alarm.
+  Future<void> cancelTimer();
+
+  /// Removes only the running countdown, leaving the end alarm to fire. Used
+  /// when the timer ends naturally: cancelling the alarm too could race
+  /// with it and silence it.
+  Future<void> hideTimerRunning();
+
+  Future<void> scheduleTaskReminder({
+    required String taskId,
+    required String title,
+    required DateTime at,
+  });
+
+  Future<void> cancelTaskReminder(String taskId);
+
+  /// Asks for permission to post notifications (Android 13+). Safe to call
+  /// repeatedly: the OS only shows the prompt once.
+  Future<void> requestPermission();
+}
+
+/// flutter_local_notifications on Android; a silent no-op elsewhere (the
+/// Linux plugin has no scheduling at all, and Android is the main target).
+class NotificationService implements Notifications {
   NotificationService([FlutterLocalNotificationsPlugin? plugin])
     : _plugin = plugin ?? FlutterLocalNotificationsPlugin();
 
   final FlutterLocalNotificationsPlugin _plugin;
 
-  static const _habitReminderChannelId = 'habit_reminders';
-  static const _habitReminderChannelName = 'Habit reminders';
+  static const _runningId = 1;
+  static const _endId = 2;
 
-  /// True only on Android - flutter_local_notifications_linux has no
-  /// zonedSchedule() implementation at all ("Scheduled/pending
-  /// notifications is currently not supported due to the lack of a
-  /// scheduler API" - package README), and it's not just missing, it's
-  /// documented as a deliberate `UnimplementedError` on Linux. Real Linux
-  /// background scheduling would need entirely separate OS-level
-  /// infrastructure (e.g. systemd user timers) outside this package -
-  /// out of scope for this first slice, so reminders are Android-only for
-  /// now. UI that offers setting a reminder should check this and hide
-  /// itself where it's false, rather than offering something that would
-  /// silently never fire.
-  static bool get isSupported =>
-      defaultTargetPlatform == TargetPlatform.android;
+  static const _running = AndroidNotificationDetails(
+    'timer_running',
+    'Running timer',
+    channelDescription: 'Countdown while a work block or break runs',
+    importance: Importance.low,
+    ongoing: true,
+    autoCancel: false,
+    onlyAlertOnce: true,
+    playSound: false,
+  );
 
-  /// Sets up timezone data (zonedSchedule needs an explicit IANA zone, not
-  /// just "local") and the plugin itself. Call once, before any
-  /// scheduling/showing.
+  static const _alarm = AndroidNotificationDetails(
+    'timer_end',
+    'Timer finished',
+    channelDescription: 'When a work block or break ends',
+    importance: Importance.high,
+    priority: Priority.high,
+  );
+
+  static const _reminder = AndroidNotificationDetails(
+    'task_reminders',
+    'Task reminders',
+    importance: Importance.high,
+    priority: Priority.high,
+  );
+
+  bool get _enabled => Platform.isAndroid;
+
+  /// Time zone data (zonedSchedule needs a real IANA zone) and plugin
+  /// setup. Call once before anything else.
   Future<void> initialize() async {
-    // `latest_all` (not `latest`) deliberately - the platform can report a
-    // deprecated IANA alias (e.g. "Arctic/Longyearbyen"), which `latest`'s
-    // reduced canonical-only dataset doesn't contain, throwing
-    // LocationNotFoundException and crashing startup before runApp().
+    if (!_enabled) return;
+    // `latest_all`, not `latest`: the platform can report a deprecated
+    // alias (e.g. "Arctic/Longyearbyen") that the reduced set lacks.
     tz_data.initializeTimeZones();
-    final localTimezone = await FlutterTimezone.getLocalTimezone();
-    tz.setLocalLocation(tz.getLocation(localTimezone.identifier));
-
-    const androidSettings = AndroidInitializationSettings(
-      '@mipmap/ic_launcher',
-    );
-    const linuxSettings = LinuxInitializationSettings(
-      defaultActionName: 'Open',
-    );
+    final zone = await FlutterTimezone.getLocalTimezone();
+    tz.setLocalLocation(tz.getLocation(zone.identifier));
     await _plugin.initialize(
       settings: const InitializationSettings(
-        android: androidSettings,
-        linux: linuxSettings,
+        android: AndroidInitializationSettings('@mipmap/ic_launcher'),
       ),
     );
   }
 
-  /// Android-only (a no-op on every other platform, including Linux, which
-  /// has no comparable runtime permission) - required on API 33+ before a
-  /// notification will actually display. Safe to call unconditionally.
+  @override
   Future<void> requestPermission() async {
+    if (!_enabled) return;
     await _plugin
         .resolvePlatformSpecificImplementation<
           AndroidFlutterLocalNotificationsPlugin
@@ -71,69 +110,154 @@ class NotificationService {
         ?.requestNotificationsPermission();
   }
 
-  /// Schedules (or reschedules - flutter_local_notifications overwrites an
-  /// existing alarm sharing the same id) a daily reminder for [habitId] at
-  /// [minuteOfDay] (0-1439, local time), recurring forever until cancelled.
-  /// Deliberately inexact (AndroidScheduleMode.inexactAllowWhileIdle, not
-  /// an exact alarm) - a personal daily habit reminder doesn't need
-  /// to-the-second precision, and this sidesteps the
-  /// SCHEDULE_EXACT_ALARM/USE_EXACT_ALARM special-app-access permission
-  /// dance entirely. "AllowWhileIdle" still ensures it fires even during
-  /// Doze, just not necessarily at the exact second.
-  Future<void> scheduleHabitReminder({
-    required String habitId,
-    required String habitTitle,
-    required int minuteOfDay,
-  }) {
-    if (!isSupported) return Future.value();
-    return _plugin.zonedSchedule(
-      id: habitNotificationId(habitId),
-      title: habitTitle,
-      body: "Time for your habit - don't forget to log it.",
-      scheduledDate: _nextOccurrence(minuteOfDay),
-      notificationDetails: const NotificationDetails(
+  @override
+  Future<void> showTimerRunning({
+    required String title,
+    required DateTime end,
+  }) async {
+    if (!_enabled) return;
+    final remaining = end.difference(DateTime.now());
+    await _plugin.show(
+      id: _runningId,
+      title: title,
+      body: 'Running',
+      notificationDetails: NotificationDetails(
         android: AndroidNotificationDetails(
-          _habitReminderChannelId,
-          _habitReminderChannelName,
+          _running.channelId,
+          _running.channelName,
+          channelDescription: _running.channelDescription,
+          importance: _running.importance,
+          ongoing: true,
+          autoCancel: false,
+          onlyAlertOnce: true,
+          playSound: false,
+          usesChronometer: true,
+          chronometerCountDown: true,
+          when: end.millisecondsSinceEpoch,
+          showWhen: true,
+          // Disappear at the end instead of counting into negative time.
+          timeoutAfter: remaining.isNegative ? 0 : remaining.inMilliseconds,
         ),
-        linux: LinuxNotificationDetails(),
       ),
-      androidScheduleMode: AndroidScheduleMode.inexactAllowWhileIdle,
-      // Recurs daily at the same time - only the time-of-day components of
-      // scheduledDate are matched going forward, not the specific date.
-      matchDateTimeComponents: DateTimeComponents.time,
     );
   }
 
-  Future<void> cancelHabitReminder(String habitId) {
-    if (!isSupported) return Future.value();
-    return _plugin.cancel(id: habitNotificationId(habitId));
+  @override
+  Future<void> showTimerPaused({
+    required String title,
+    required String text,
+  }) async {
+    if (!_enabled) return;
+    await _plugin.cancel(id: _endId);
+    await _plugin.show(
+      id: _runningId,
+      title: title,
+      body: text,
+      notificationDetails: const NotificationDetails(android: _running),
+    );
   }
 
-  /// The next occurrence of [minuteOfDay] (0-1439) from now - today if
-  /// that time hasn't passed yet, otherwise tomorrow. zonedSchedule needs
-  /// a real starting instant even for a "matches the time every day"
-  /// recurrence.
-  tz.TZDateTime _nextOccurrence(int minuteOfDay) {
-    final now = tz.TZDateTime.now(tz.local);
-    var scheduled = tz.TZDateTime(
-      tz.local,
-      now.year,
-      now.month,
-      now.day,
-      minuteOfDay ~/ 60,
-      minuteOfDay % 60,
+  @override
+  Future<void> scheduleTimerEnd({
+    required String title,
+    required String body,
+    required DateTime at,
+  }) async {
+    if (!_enabled) return;
+    await _plugin.zonedSchedule(
+      id: _endId,
+      title: title,
+      body: body,
+      scheduledDate: tz.TZDateTime.from(at, tz.local),
+      notificationDetails: const NotificationDetails(android: _alarm),
+      // Exact: an inexact alarm can be deferred by minutes in Doze, which
+      // is useless for a 25-minute timer. Allowed via USE_EXACT_ALARM in
+      // the manifest (fine for a sideloaded app).
+      androidScheduleMode: AndroidScheduleMode.exactAllowWhileIdle,
     );
-    if (!scheduled.isAfter(now)) {
-      scheduled = scheduled.add(const Duration(days: 1));
-    }
-    return scheduled;
+  }
+
+  @override
+  Future<void> cancelTimer() async {
+    if (!_enabled) return;
+    await _plugin.cancel(id: _runningId);
+    await _plugin.cancel(id: _endId);
+  }
+
+  @override
+  Future<void> hideTimerRunning() async {
+    if (!_enabled) return;
+    await _plugin.cancel(id: _runningId);
+  }
+
+  @override
+  Future<void> scheduleTaskReminder({
+    required String taskId,
+    required String title,
+    required DateTime at,
+  }) async {
+    if (!_enabled) return;
+    await _plugin.zonedSchedule(
+      id: taskNotificationId(taskId),
+      title: title,
+      body: 'Reminder',
+      scheduledDate: tz.TZDateTime.from(at, tz.local),
+      notificationDetails: const NotificationDetails(android: _reminder),
+      androidScheduleMode: AndroidScheduleMode.exactAllowWhileIdle,
+    );
+  }
+
+  @override
+  Future<void> cancelTaskReminder(String taskId) async {
+    if (!_enabled) return;
+    await _plugin.cancel(id: taskNotificationId(taskId));
   }
 }
 
-/// Deterministic positive notification id derived from a habit's UUID -
-/// fully reproducible from the id alone, so nothing needs to store a
-/// separate mapping. `hashCode` can be negative; masked to fit
-/// flutter_local_notifications' positive int id range. Collision risk is
-/// negligible at this app's personal-planner scale (a handful of habits).
-int habitNotificationId(String habitId) => habitId.hashCode & 0x7FFFFFFF;
+/// Does nothing: the default until the app installs the real service, and
+/// what tests use when they don't care about notifications.
+class NoNotifications implements Notifications {
+  const NoNotifications();
+
+  @override
+  Future<void> showTimerRunning({
+    required String title,
+    required DateTime end,
+  }) async {}
+  @override
+  Future<void> showTimerPaused({
+    required String title,
+    required String text,
+  }) async {}
+  @override
+  Future<void> scheduleTimerEnd({
+    required String title,
+    required String body,
+    required DateTime at,
+  }) async {}
+  @override
+  Future<void> cancelTimer() async {}
+  @override
+  Future<void> hideTimerRunning() async {}
+  @override
+  Future<void> scheduleTaskReminder({
+    required String taskId,
+    required String title,
+    required DateTime at,
+  }) async {}
+  @override
+  Future<void> cancelTaskReminder(String taskId) async {}
+  @override
+  Future<void> requestPermission() async {}
+}
+
+/// A stable notification ID per task, derived from its ID so nothing has to
+/// store a mapping. Kept away from the timer's IDs 1 and 2.
+int taskNotificationId(String taskId) {
+  // FNV-1a: String.hashCode isn't guaranteed stable across runs.
+  var hash = 0x811c9dc5;
+  for (final unit in taskId.codeUnits) {
+    hash = ((hash ^ unit) * 0x01000193) & 0x7fffffff;
+  }
+  return hash < 16 ? hash + 16 : hash;
+}

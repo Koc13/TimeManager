@@ -28,4 +28,9 @@ class LocalSettings {
   Future<String?> dataRoot() async => (await _read())['data_root'] as String?;
 
   Future<void> setDataRoot(String? path) => _update('data_root', path);
+
+  /// The running timer as JSON, or null when idle.
+  Future<Object?> timer() async => (await _read())['timer'];
+
+  Future<void> setTimer(Map<String, Object?>? json) => _update('timer', json);
 }

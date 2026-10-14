@@ -1,7 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../domain/timer_state.dart';
+import '../notifications/notification_service.dart';
 import '../providers/data_providers.dart';
+import '../providers/timer_controller.dart';
 import '../storage/data_store.dart';
 import '../storage/local_settings.dart';
 import 'app_shell.dart';
@@ -20,9 +23,14 @@ ThemeData _theme(Brightness brightness) => ThemeData(
 /// placed under MaterialApp would be invisible to them; and creating it
 /// late lets every provider assume a [DataStore] exists.
 class TimeManagerApp extends StatefulWidget {
-  const TimeManagerApp({super.key, required this.settings});
+  const TimeManagerApp({
+    super.key,
+    required this.settings,
+    required this.notifications,
+  });
 
   final LocalSettings settings;
+  final Notifications notifications;
 
   @override
   State<TimeManagerApp> createState() => _TimeManagerAppState();
@@ -30,6 +38,7 @@ class TimeManagerApp extends StatefulWidget {
 
 class _TimeManagerAppState extends State<TimeManagerApp> {
   DataStore? _store;
+  TimerState? _timer;
   bool _loading = true;
   String? _error;
 
@@ -40,6 +49,7 @@ class _TimeManagerAppState extends State<TimeManagerApp> {
   }
 
   Future<void> _openRemembered() async {
+    _timer = TimerState.fromJson(await widget.settings.timer());
     final root = await widget.settings.dataRoot();
     if (root != null) {
       try {
@@ -72,7 +82,12 @@ class _TimeManagerAppState extends State<TimeManagerApp> {
     if (store == null) return app;
     return ProviderScope(
       key: ObjectKey(store),
-      overrides: [dataStoreProvider.overrideWithValue(store)],
+      overrides: [
+        dataStoreProvider.overrideWithValue(store),
+        localSettingsProvider.overrideWithValue(widget.settings),
+        notificationsProvider.overrideWithValue(widget.notifications),
+        restoredTimerProvider.overrideWithValue(_timer),
+      ],
       child: app,
     );
   }

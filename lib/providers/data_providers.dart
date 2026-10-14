@@ -10,7 +10,9 @@ import '../domain/period_doc.dart';
 import '../domain/task.dart';
 import '../domain/progress.dart' as progress;
 import '../domain/task_rules.dart' as rules;
+import '../notifications/notification_service.dart';
 import '../storage/data_store.dart';
+import '../storage/local_settings.dart';
 
 /// The opened data folder. Always overridden in the ProviderScope that
 /// app.dart creates once a folder is open, so everything below it can
@@ -35,6 +37,28 @@ class TodayNotifier extends Notifier<DateTime> {
   void refresh() {
     final today = midnight(ref.read(clockProvider)());
     if (today != state) state = today;
+  }
+}
+
+/// Device-local settings; null in tests that don't need persistence.
+final localSettingsProvider = Provider<LocalSettings?>((ref) => null);
+
+final notificationsProvider = Provider<Notifications>(
+  (ref) => const NoNotifications(),
+);
+
+/// Goals that just got auto-completed by something without its own UI at
+/// hand (the timer finishing in the background). The shell shows them.
+final reachedGoalsProvider = NotifierProvider<ReachedGoals, List<Goal>>(
+  ReachedGoals.new,
+);
+
+class ReachedGoals extends Notifier<List<Goal>> {
+  @override
+  List<Goal> build() => const [];
+
+  void announce(List<Goal> goals) {
+    if (goals.isNotEmpty) state = goals;
   }
 }
 
@@ -239,6 +263,19 @@ class AppDataController extends Notifier<AppData> {
       }
     }
     return _recordActivity([doc.copyWith(habitEntries: entries)]);
+  }
+
+  // ---------------------------------------------------------- sessions
+
+  /// Writes [session] into the day it started, replacing one with the same
+  /// ID (finishing a block twice must not log it twice).
+  Future<List<Goal>> recordSession(Session session) {
+    final doc = state.period(Day(session.start));
+    return _recordActivity([
+      doc.copyWith(
+        sessions: [...doc.sessions.where((s) => s.id != session.id), session],
+      ),
+    ]);
   }
 
   /// Saves activity (logs, habit entries, sessions) and auto-completes

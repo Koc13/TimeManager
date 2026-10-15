@@ -5,7 +5,7 @@ plugins {
 }
 
 android {
-    namespace = "com.example.first_app"
+    namespace = "io.github.koc13.timemanager"
     // permission_handler_android needs compileSdk 37; Flutter 3.47 defaults lower.
     // compileSdk only sets which APIs we can compile against, not the minimum
     // Android version the app runs on.
@@ -20,7 +20,7 @@ android {
 
     defaultConfig {
         // TODO: Specify your own unique Application ID (https://developer.android.com/studio/build/application-id.html).
-        applicationId = "com.example.first_app"
+        applicationId = "io.github.koc13.timemanager"
         // You can update the following values to match your application needs.
         // For more information, see: https://flutter.dev/to/review-gradle-config.
         minSdk = flutter.minSdkVersion

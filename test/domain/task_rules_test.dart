@@ -1,8 +1,8 @@
-import 'package:first_app/domain/app_data.dart';
-import 'package:first_app/domain/period.dart';
-import 'package:first_app/domain/period_doc.dart';
-import 'package:first_app/domain/task.dart';
-import 'package:first_app/domain/task_rules.dart';
+import 'package:time_manager/domain/app_data.dart';
+import 'package:time_manager/domain/period.dart';
+import 'package:time_manager/domain/period_doc.dart';
+import 'package:time_manager/domain/task.dart';
+import 'package:time_manager/domain/task_rules.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 Task task(

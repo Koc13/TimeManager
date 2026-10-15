@@ -1,10 +1,10 @@
 import 'dart:io';
 
-import 'package:first_app/domain/goal.dart';
-import 'package:first_app/domain/habit.dart';
-import 'package:first_app/providers/data_providers.dart';
-import 'package:first_app/storage/data_store.dart';
-import 'package:first_app/ui/app_shell.dart';
+import 'package:time_manager/domain/goal.dart';
+import 'package:time_manager/domain/habit.dart';
+import 'package:time_manager/providers/data_providers.dart';
+import 'package:time_manager/storage/data_store.dart';
+import 'package:time_manager/ui/app_shell.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';

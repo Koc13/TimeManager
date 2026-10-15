@@ -1,4 +1,4 @@
-import 'package:first_app/storage/yaml_io.dart';
+import 'package:time_manager/storage/yaml_io.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {

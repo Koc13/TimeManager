@@ -1,11 +1,11 @@
-import 'package:first_app/domain/activity.dart';
-import 'package:first_app/domain/aggregation.dart';
-import 'package:first_app/domain/app_data.dart';
-import 'package:first_app/domain/goal.dart';
-import 'package:first_app/domain/period.dart';
-import 'package:first_app/domain/period_doc.dart';
-import 'package:first_app/domain/target_ref.dart';
-import 'package:first_app/domain/task.dart';
+import 'package:time_manager/domain/activity.dart';
+import 'package:time_manager/domain/aggregation.dart';
+import 'package:time_manager/domain/app_data.dart';
+import 'package:time_manager/domain/goal.dart';
+import 'package:time_manager/domain/period.dart';
+import 'package:time_manager/domain/period_doc.dart';
+import 'package:time_manager/domain/target_ref.dart';
+import 'package:time_manager/domain/task.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {

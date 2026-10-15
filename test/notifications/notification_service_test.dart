@@ -1,4 +1,4 @@
-import 'package:first_app/notifications/notification_service.dart';
+import 'package:time_manager/notifications/notification_service.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {

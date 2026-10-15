@@ -1,12 +1,12 @@
 import 'dart:io';
 
-import 'package:first_app/domain/period.dart';
-import 'package:first_app/domain/period_doc.dart';
-import 'package:first_app/domain/task.dart';
-import 'package:first_app/notifications/notification_service.dart';
-import 'package:first_app/storage/data_store.dart';
-import 'package:first_app/storage/local_settings.dart';
-import 'package:first_app/ui/app.dart';
+import 'package:time_manager/domain/period.dart';
+import 'package:time_manager/domain/period_doc.dart';
+import 'package:time_manager/domain/task.dart';
+import 'package:time_manager/notifications/notification_service.dart';
+import 'package:time_manager/storage/data_store.dart';
+import 'package:time_manager/storage/local_settings.dart';
+import 'package:time_manager/ui/app.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {

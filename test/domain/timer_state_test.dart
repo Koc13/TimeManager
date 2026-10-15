@@ -1,5 +1,5 @@
-import 'package:first_app/domain/target_ref.dart';
-import 'package:first_app/domain/timer_state.dart';
+import 'package:time_manager/domain/target_ref.dart';
+import 'package:time_manager/domain/timer_state.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {

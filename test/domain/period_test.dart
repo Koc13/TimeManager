@@ -1,4 +1,4 @@
-import 'package:first_app/domain/period.dart';
+import 'package:time_manager/domain/period.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {

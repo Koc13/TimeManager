@@ -1,9 +1,9 @@
-import 'package:first_app/domain/app_data.dart';
-import 'package:first_app/domain/period.dart';
-import 'package:first_app/domain/period_doc.dart';
-import 'package:first_app/domain/recurring.dart';
-import 'package:first_app/domain/task.dart';
-import 'package:first_app/storage/codecs.dart';
+import 'package:time_manager/domain/app_data.dart';
+import 'package:time_manager/domain/period.dart';
+import 'package:time_manager/domain/period_doc.dart';
+import 'package:time_manager/domain/recurring.dart';
+import 'package:time_manager/domain/task.dart';
+import 'package:time_manager/storage/codecs.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 RecurringTemplate template(RepeatRule rule, {String? last, int? reminder}) =>

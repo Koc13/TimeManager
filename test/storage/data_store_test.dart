@@ -1,10 +1,10 @@
 import 'dart:io';
 
-import 'package:first_app/domain/goal.dart';
-import 'package:first_app/domain/period.dart';
-import 'package:first_app/domain/period_doc.dart';
-import 'package:first_app/domain/task.dart';
-import 'package:first_app/storage/data_store.dart';
+import 'package:time_manager/domain/goal.dart';
+import 'package:time_manager/domain/period.dart';
+import 'package:time_manager/domain/period_doc.dart';
+import 'package:time_manager/domain/task.dart';
+import 'package:time_manager/storage/data_store.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {

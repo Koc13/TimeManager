@@ -1,14 +1,14 @@
 import 'dart:async';
 import 'dart:io';
 
-import 'package:first_app/domain/target_ref.dart';
-import 'package:first_app/domain/timer_state.dart';
-import 'package:first_app/notifications/notification_service.dart';
-import 'package:first_app/providers/timer_controller.dart';
+import 'package:time_manager/domain/target_ref.dart';
+import 'package:time_manager/domain/timer_state.dart';
+import 'package:time_manager/notifications/notification_service.dart';
+import 'package:time_manager/providers/timer_controller.dart';
 
-import 'package:first_app/providers/data_providers.dart';
-import 'package:first_app/storage/data_store.dart';
-import 'package:first_app/ui/app_shell.dart';
+import 'package:time_manager/providers/data_providers.dart';
+import 'package:time_manager/storage/data_store.dart';
+import 'package:time_manager/ui/app_shell.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';

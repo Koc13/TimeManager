@@ -8,6 +8,7 @@ import '../providers/timer_controller.dart';
 import '../storage/data_store.dart';
 import '../storage/local_settings.dart';
 import 'app_shell.dart';
+import 'data_folder.dart';
 import 'setup_screen.dart';
 
 const _seed = Color(0xFF0A84FF);
@@ -27,10 +28,14 @@ class TimeManagerApp extends StatefulWidget {
     super.key,
     required this.settings,
     required this.notifications,
+    this.pickFolder = pickDataFolder,
   });
 
   final LocalSettings settings;
   final Notifications notifications;
+
+  /// The system folder picker; tests pass a stand-in.
+  final Future<String?> Function() pickFolder;
 
   @override
   State<TimeManagerApp> createState() => _TimeManagerAppState();
@@ -46,6 +51,19 @@ class _TimeManagerAppState extends State<TimeManagerApp> {
   void initState() {
     super.initState();
     _openRemembered();
+  }
+
+  /// Opens [path] (throws if it can't be used), remembers it on this device
+  /// and rebuilds the app on it. The timer and reminders are device-local,
+  /// so they carry over; the reminder sync reconciles against the new data.
+  Future<void> _switchTo(String path) async {
+    final store = await DataStore.open(path);
+    await widget.settings.setDataRoot(path);
+    final timer = TimerState.fromJson(await widget.settings.timer());
+    setState(() {
+      _store = store;
+      _timer = timer;
+    });
   }
 
   Future<void> _openRemembered() async {
@@ -88,6 +106,8 @@ class _TimeManagerAppState extends State<TimeManagerApp> {
         localSettingsProvider.overrideWithValue(widget.settings),
         notificationsProvider.overrideWithValue(widget.notifications),
         restoredTimerProvider.overrideWithValue(_timer),
+        switchDataFolderProvider.overrideWithValue(_switchTo),
+        pickDataFolderProvider.overrideWithValue(widget.pickFolder),
       ],
       child: app,
     );

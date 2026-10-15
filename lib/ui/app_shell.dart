@@ -13,10 +13,11 @@ import 'goals/goal_feedback.dart';
 import 'feedback.dart';
 import 'goals/goals_screen.dart';
 import 'habits/habits_screen.dart';
+import 'settings/settings_screen.dart';
 import 'timer/timer_screen.dart';
 import 'todo/todo_pager.dart';
 
-enum Section { todo, timer, goals, habits }
+enum Section { todo, timer, goals, habits, settings }
 
 /// Switches between the four drawer sections and owns app-wide timing:
 /// rollover and recurring tasks on start, at midnight, and on resume (after reloading files,
@@ -156,6 +157,10 @@ class _AppShellState extends ConsumerState<AppShell>
             scaffoldKey: _scaffold,
             drawer: drawer,
           ),
+          Section.settings => SettingsScreen(
+            scaffoldKey: _scaffold,
+            drawer: drawer,
+          ),
         },
       ),
     );
@@ -175,6 +180,8 @@ class AppDrawer extends StatelessWidget {
       (Section.timer, Icons.timer_outlined, 'Timer'),
       (Section.goals, Icons.flag_outlined, 'Goals'),
       (Section.habits, Icons.repeat, 'Habits'),
+      // Below a divider: the four sections are the app; this configures it.
+      (Section.settings, Icons.settings_outlined, 'Settings'),
     ];
     return NavigationDrawer(
       selectedIndex: items.indexWhere((i) => i.$1 == selected),
@@ -184,8 +191,14 @@ class AppDrawer extends StatelessWidget {
           padding: EdgeInsets.fromLTRB(28, 16, 16, 10),
           child: Text('Time Manager'),
         ),
-        for (final (_, icon, label) in items)
+        for (final (section, icon, label) in items) ...[
+          if (section == Section.settings)
+            const Padding(
+              padding: EdgeInsets.symmetric(horizontal: 28, vertical: 8),
+              child: Divider(),
+            ),
           NavigationDrawerDestination(icon: Icon(icon), label: Text(label)),
+        ],
       ],
     );
   }

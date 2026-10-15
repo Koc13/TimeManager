@@ -23,6 +23,19 @@ final dataStoreProvider = Provider<DataStore>(
   (ref) => throw StateError('dataStoreProvider must be overridden'),
 );
 
+/// Opens another data folder and restarts the app on it. Provided by
+/// app.dart, which owns the open store.
+final switchDataFolderProvider = Provider<Future<void> Function(String path)>(
+  (ref) =>
+      (_) async => throw UnsupportedError('No app to switch folders in'),
+);
+
+/// The folder picker, swappable in tests (the real one is a platform dialog).
+final pickDataFolderProvider = Provider<Future<String?> Function()>(
+  (ref) =>
+      () async => null,
+);
+
 /// "Now", injectable so tests can pin the date.
 final clockProvider = Provider<DateTime Function()>((ref) => DateTime.now);
 

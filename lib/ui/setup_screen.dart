@@ -1,11 +1,8 @@
-import 'dart:io';
-
-import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
-import 'package:permission_handler/permission_handler.dart';
 
 import '../storage/data_store.dart';
 import '../storage/local_settings.dart';
+import 'data_folder.dart';
 
 /// First run (or a folder that can no longer be opened): pick the data
 /// root folder and get permission to read it.
@@ -32,16 +29,7 @@ class _SetupScreenState extends State<SetupScreen> {
   Future<void> _choose() async {
     setState(() => _busy = true);
     try {
-      // Android: the folder is in shared storage (so Syncthing can sync it)
-      // and is read with plain dart:io, which needs "All files access".
-      if (Platform.isAndroid &&
-          !await Permission.manageExternalStorage.request().isGranted) {
-        setState(() => _error = 'Allow "All files access" to use a folder.');
-        return;
-      }
-      final path = await FilePicker.getDirectoryPath(
-        dialogTitle: 'Data folder',
-      );
+      final path = await pickDataFolder();
       if (path == null) return;
       final store = await DataStore.open(path);
       await widget.settings.setDataRoot(path);

@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../notifications/notification_service.dart';
 import '../providers/data_providers.dart';
 import '../providers/folder_watch.dart';
 import '../providers/reminder_sync.dart';
@@ -33,8 +34,14 @@ class AppShell extends ConsumerStatefulWidget {
 
 class _AppShellState extends ConsumerState<AppShell>
     with WidgetsBindingObserver {
-  Section _section = Section.todo;
+  // A cold start opens the Daily ToDo, or the Timer while a work block or
+  // break is running or waiting at its break offer. Coming back from the
+  // background keeps whatever section was open (this state survives).
+  late Section _section = ref.read(timerProvider) == null
+      ? Section.todo
+      : Section.timer;
   Timer? _midnight;
+  StreamSubscription<String>? _taps;
 
   /// The visible section's Scaffold. Only one section is mounted at a time,
   /// so one key is enough; the shell uses it to open/close the drawer.
@@ -45,12 +52,22 @@ class _AppShellState extends ConsumerState<AppShell>
     super.initState();
     WidgetsBinding.instance.addObserver(this);
     WidgetsBinding.instance.addPostFrameCallback((_) => _dayCheck());
+    // Tapping the timer's notification jumps to the Timer; a reminder
+    // jumps to the ToDo.
+    _taps = ref.read(notificationsProvider).taps.listen((payload) {
+      if (!mounted) return;
+      _scaffold.currentState?.closeDrawer();
+      setState(
+        () => _section = payload == timerPayload ? Section.timer : Section.todo,
+      );
+    });
   }
 
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
     _midnight?.cancel();
+    _taps?.cancel();
     super.dispose();
   }
 

@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
@@ -8,6 +9,10 @@ import 'package:timezone/timezone.dart' as tz;
 /// What the app needs from notifications. An interface so tests can record
 /// calls instead of talking to the platform plugin.
 abstract interface class Notifications {
+  /// Payloads of notifications the user tapped while the app was running:
+  /// [timerPayload] for the timer, or a task ID for a reminder.
+  Stream<String> get taps;
+
   /// Ongoing, non-dismissable countdown while a timer runs. Android draws
   /// the countdown itself (a chronometer), so it keeps ticking even if the
   /// app is killed.
@@ -45,6 +50,8 @@ abstract interface class Notifications {
   Future<void> requestPermission();
 }
 
+const timerPayload = 'timer';
+
 /// flutter_local_notifications on Android; a silent no-op elsewhere (the
 /// Linux plugin has no scheduling at all, and Android is the main target).
 class NotificationService implements Notifications {
@@ -52,6 +59,10 @@ class NotificationService implements Notifications {
     : _plugin = plugin ?? FlutterLocalNotificationsPlugin();
 
   final FlutterLocalNotificationsPlugin _plugin;
+  final _taps = StreamController<String>.broadcast();
+
+  @override
+  Stream<String> get taps => _taps.stream;
 
   static const _runningId = 1;
   static const _endId = 2;
@@ -97,6 +108,8 @@ class NotificationService implements Notifications {
       settings: const InitializationSettings(
         android: AndroidInitializationSettings('@mipmap/ic_launcher'),
       ),
+      onDidReceiveNotificationResponse: (response) =>
+          _taps.add(response.payload ?? ''),
     );
   }
 
@@ -121,6 +134,7 @@ class NotificationService implements Notifications {
       id: _runningId,
       title: title,
       body: 'Running',
+      payload: timerPayload,
       notificationDetails: NotificationDetails(
         android: AndroidNotificationDetails(
           _running.channelId,
@@ -153,6 +167,7 @@ class NotificationService implements Notifications {
       id: _runningId,
       title: title,
       body: text,
+      payload: timerPayload,
       notificationDetails: const NotificationDetails(android: _running),
     );
   }
@@ -168,6 +183,7 @@ class NotificationService implements Notifications {
       id: _endId,
       title: title,
       body: body,
+      payload: timerPayload,
       scheduledDate: tz.TZDateTime.from(at, tz.local),
       notificationDetails: const NotificationDetails(android: _alarm),
       // Exact: an inexact alarm can be deferred by minutes in Doze, which
@@ -201,6 +217,7 @@ class NotificationService implements Notifications {
       id: taskNotificationId(taskId),
       title: title,
       body: 'Reminder',
+      payload: taskId,
       scheduledDate: tz.TZDateTime.from(at, tz.local),
       notificationDetails: const NotificationDetails(android: _reminder),
       androidScheduleMode: AndroidScheduleMode.exactAllowWhileIdle,
@@ -218,6 +235,9 @@ class NotificationService implements Notifications {
 /// what tests use when they don't care about notifications.
 class NoNotifications implements Notifications {
   const NoNotifications();
+
+  @override
+  Stream<String> get taps => const Stream.empty();
 
   @override
   Future<void> showTimerRunning({

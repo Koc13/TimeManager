@@ -1,4 +1,10 @@
+import 'dart:async';
 import 'dart:io';
+
+import 'package:first_app/domain/target_ref.dart';
+import 'package:first_app/domain/timer_state.dart';
+import 'package:first_app/notifications/notification_service.dart';
+import 'package:first_app/providers/timer_controller.dart';
 
 import 'package:first_app/providers/data_providers.dart';
 import 'package:first_app/storage/data_store.dart';
@@ -74,4 +80,61 @@ void main() {
       contains('target: {type: custom, name: Tax forms}'),
     );
   });
+
+  testWidgets('a cold start with a running timer opens the Timer', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          dataStoreProvider.overrideWithValue(store),
+          clockProvider.overrideWithValue(() => now),
+          restoredTimerProvider.overrideWithValue(
+            TimerState.start(
+              target: const TargetRef.custom('Reading'),
+              workMin: 25,
+              breakMin: 5,
+              sessionId: 's_1',
+              now: now.subtract(const Duration(minutes: 5)),
+            ),
+          ),
+        ],
+        child: const MaterialApp(home: AppShell()),
+      ),
+    );
+    await settleIo(tester);
+    expect(find.text('20:00'), findsOneWidget);
+    expect(find.widgetWithText(AppBar, 'Timer'), findsOneWidget);
+  });
+
+  testWidgets('tapping the timer notification switches to the Timer', (
+    tester,
+  ) async {
+    final taps = StreamController<String>.broadcast();
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          dataStoreProvider.overrideWithValue(store),
+          clockProvider.overrideWithValue(() => now),
+          notificationsProvider.overrideWithValue(_TapNotifications(taps)),
+        ],
+        child: const MaterialApp(home: AppShell()),
+      ),
+    );
+    await settleIo(tester);
+    expect(find.text('Wed 14 Oct'), findsOneWidget);
+    taps.add(timerPayload);
+    await tester.pumpAndSettle();
+    expect(find.widgetWithText(AppBar, 'Timer'), findsOneWidget);
+    await taps.close();
+  });
+}
+
+class _TapNotifications extends NoNotifications {
+  _TapNotifications(this._taps);
+
+  final StreamController<String> _taps;
+
+  @override
+  Stream<String> get taps => _taps.stream;
 }

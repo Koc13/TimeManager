@@ -9,14 +9,9 @@ import '../providers/timer_controller.dart';
 import '../storage/data_store.dart';
 import '../storage/local_settings.dart';
 import 'app_shell.dart';
+import 'theme/nocturne.dart';
 import 'data_folder.dart';
 import 'setup_screen.dart';
-
-const _seed = Color(0xFF0A84FF);
-
-ThemeData _theme(Brightness brightness) => ThemeData(
-  colorScheme: ColorScheme.fromSeed(seedColor: _seed, brightness: brightness),
-);
 
 /// Opens the data folder remembered on this device, or asks for one.
 ///
@@ -99,8 +94,8 @@ class _TimeManagerAppState extends State<TimeManagerApp> {
         : const AppShell();
     final app = MaterialApp(
       title: 'Time Manager',
-      theme: _theme(Brightness.light),
-      darkTheme: _theme(Brightness.dark),
+      // One dark theme, per the Nocturne design.
+      theme: nocturneTheme(),
       home: home,
     );
     if (store == null) return app;

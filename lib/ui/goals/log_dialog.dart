@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import '../../domain/goal.dart';
+import '../theme/widgets.dart';
 
 typedef LogDraft = ({num? amount, String? unit, String? source});
 
@@ -100,11 +101,8 @@ class _LogDialogState extends State<_LogDialog> {
         ],
       ),
       actions: [
-        TextButton(
-          onPressed: () => Navigator.pop(context),
-          child: const Text('Cancel'),
-        ),
-        FilledButton(onPressed: _save, child: const Text('Log')),
+        NocButton.secondary('Cancel', onPressed: () => Navigator.pop(context)),
+        NocButton('Log', onPressed: _save),
       ],
     );
   }

@@ -6,7 +6,9 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../domain/period.dart';
 import '../../providers/data_providers.dart';
-import 'done_section.dart';
+import '../format.dart';
+import '../theme/nocturne.dart';
+import '../theme/widgets.dart';
 import '../../providers/actions/task_actions.dart';
 
 /// The period file's Markdown body: the nightly journal for a day, review
@@ -27,6 +29,7 @@ class _JournalEditorState extends ConsumerState<JournalEditor> {
   final _focus = FocusNode();
   Timer? _debounce;
   bool _preview = false;
+  DateTime? _savedAt;
 
   // Captured up front because the last save runs in dispose(), where
   // looking up ancestors or using ref is no longer allowed.
@@ -54,6 +57,7 @@ class _JournalEditorState extends ConsumerState<JournalEditor> {
     if (old.period != widget.period) {
       _flush(old.period);
       _text.text = _stored;
+      _savedAt = null;
     }
   }
 
@@ -77,9 +81,14 @@ class _JournalEditorState extends ConsumerState<JournalEditor> {
     if (_debounce == null) return;
     _debounce!.cancel();
     _debounce = null;
-    _data.setJournal(period, _text.text).catchError((Object e) {
-      _messenger?.showSnackBar(SnackBar(content: Text('$e')));
-    });
+    _data
+        .setJournal(period, _text.text)
+        .then((_) {
+          if (mounted) setState(() => _savedAt = DateTime.now());
+        })
+        .catchError((Object e) {
+          _messenger?.showSnackBar(SnackBar(content: Text('$e')));
+        });
   }
 
   @override
@@ -93,39 +102,61 @@ class _JournalEditorState extends ConsumerState<JournalEditor> {
       _text.text = stored;
     }
 
+    final isDay = widget.period.kind == PeriodKind.day;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        SectionHeader(
-          widget.period.kind == PeriodKind.day ? 'Journal' : 'Review',
-          trailing: IconButton(
-            tooltip: _preview ? 'Edit' : 'Preview',
-            icon: Icon(
-              _preview ? Icons.edit_outlined : Icons.visibility_outlined,
-            ),
+        SectionTitle(
+          isDay ? 'Journal' : 'Review',
+          trailing: NocButton.ghost(
+            _preview ? 'Edit' : 'Preview',
+            small: true,
             onPressed: () {
               _flush(widget.period);
               setState(() => _preview = !_preview);
             },
           ),
         ),
-        Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 16),
-          child: _preview
-              ? MarkdownBody(data: _text.text.isEmpty ? '*Empty*' : _text.text)
-              : TextField(
-                  controller: _text,
-                  focusNode: _focus,
-                  onChanged: _changed,
-                  minLines: 4,
-                  maxLines: null,
-                  keyboardType: TextInputType.multiline,
-                  textCapitalization: TextCapitalization.sentences,
-                  decoration: const InputDecoration(
-                    hintText: 'Markdown…',
-                    border: OutlineInputBorder(),
+        const SizedBox(height: 8),
+        if (_preview)
+          NocCard(
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(minHeight: 102),
+              child: MarkdownBody(
+                data: _text.text.isEmpty ? '*Empty*' : _text.text,
+                styleSheet: MarkdownStyleSheet(
+                  p: const TextStyle(
+                    fontSize: 14,
+                    height: 1.6,
+                    color: Noc.text,
                   ),
                 ),
+              ),
+            ),
+          )
+        else
+          TextField(
+            controller: _text,
+            focusNode: _focus,
+            onChanged: _changed,
+            minLines: 5,
+            maxLines: null,
+            keyboardType: TextInputType.multiline,
+            textCapitalization: TextCapitalization.sentences,
+            style: const TextStyle(fontSize: 14, height: 1.6),
+            decoration: InputDecoration(
+              hintText: isDay
+                  ? 'How did the day go?'
+                  : 'What went well this ${widget.period.kind.name}?',
+              contentPadding: const EdgeInsets.all(12),
+            ),
+          ),
+        const SizedBox(height: 6),
+        Text(
+          _savedAt == null
+              ? 'Saves as you type'
+              : 'Saved ${timeLabel(_savedAt!)}',
+          style: Noc.small,
         ),
       ],
     );

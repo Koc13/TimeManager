@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../domain/goal.dart';
 import '../../domain/habit.dart';
 import '../../providers/data_providers.dart';
+import '../theme/widgets.dart';
 
 typedef HabitDraft = ({
   String title,
@@ -92,16 +93,17 @@ class _HabitEditorState extends ConsumerState<_HabitEditor> {
               decoration: const InputDecoration(labelText: 'Habit'),
             ),
             const SizedBox(height: 16),
-            SegmentedButton<HabitKind>(
-              segments: const [
-                ButtonSegment(value: HabitKind.yesNo, label: Text('Yes / no')),
-                ButtonSegment(
-                  value: HabitKind.measurable,
-                  label: Text('Measurable'),
-                ),
-              ],
-              selected: {_kind},
-              onSelectionChanged: (s) => setState(() => _kind = s.single),
+            Align(
+              alignment: Alignment.centerLeft,
+              child: NocSegmented<HabitKind>(
+                minWidth: 96,
+                options: const [
+                  (HabitKind.yesNo, 'Yes / no'),
+                  (HabitKind.measurable, 'Measurable'),
+                ],
+                selected: _kind,
+                onChanged: (k) => setState(() => _kind = k),
+              ),
             ),
             if (_kind == HabitKind.measurable)
               TextField(
@@ -137,7 +139,7 @@ class _HabitEditorState extends ConsumerState<_HabitEditor> {
                 decoration: const InputDecoration(labelText: 'Each check adds'),
               ),
             const SizedBox(height: 16),
-            FilledButton(onPressed: _save, child: const Text('Save')),
+            NocButton('Save', big: true, onPressed: _save),
           ],
         ),
       ),

@@ -1,78 +1,165 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../domain/aggregation.dart';
 import '../../domain/period.dart';
 import '../../domain/task_rules.dart';
 import '../../providers/data_providers.dart';
+import '../format.dart';
+import '../theme/nocturne.dart';
+import '../theme/widgets.dart';
 import 'done_section.dart';
 import 'journal_editor.dart';
 import 'leftovers_card.dart';
 import 'task_list.dart';
+import '../theme/icons.dart';
 
-/// One period's ToDo list with its Done page below it.
-///
-/// Why one scroll view instead of a vertical PageView: two nested
-/// scrollables on the same axis don't hand a drag from one to the other, so
-/// "scroll past the end of the list" would stop at the list's end. Here the
-/// ToDo part is simply made at least one screen tall, so the Done page
-/// starts just below the fold and the same scroll reaches it.
+/// One period's page: header, progress, leftovers, open tasks with an
+/// "Add a task" row, then Done, Time, Logged and the journal, in one
+/// scroll.
 class PeriodPage extends ConsumerWidget {
-  const PeriodPage({super.key, required this.period});
+  const PeriodPage({
+    super.key,
+    required this.period,
+    required this.onShow,
+    required this.onAdd,
+  });
 
   final Period period;
 
+  /// Switches this page to another period (arrows, date picker, "Back").
+  final ValueChanged<Period> onShow;
+  final VoidCallback onAdd;
+
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final doc = ref.watch(appDataProvider.select((d) => d.period(period)));
+    final data = ref.watch(appDataProvider);
+    final today = ref.watch(todayProvider);
+    final doc = data.period(period);
     final open = openTasksSorted(doc.tasks);
-    final scheme = Theme.of(context).colorScheme;
-    final muted = TextStyle(color: scheme.outline);
+    final doneCount = doneTasks(data, period).length;
+    final total = open.length + doneCount;
+    final current = Period.of(period.kind, today);
+    final isCurrent = period == current;
 
-    return LayoutBuilder(
-      builder: (context, constraints) => CustomScrollView(
-        slivers: [
-          SliverToBoxAdapter(
-            child: ConstrainedBox(
-              constraints: BoxConstraints(minHeight: constraints.maxHeight),
-              child: IntrinsicHeight(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    if (period case final Day day) LeftoversCard(day: day),
-                    if (open.isEmpty)
-                      Padding(
-                        padding: const EdgeInsets.all(32),
-                        child: Center(
-                          child: Text('Nothing to do', style: muted),
-                        ),
-                      ),
-                    for (final task in open)
-                      TaskTile(period: period, task: task),
-                    const Spacer(),
-                    Padding(
-                      padding: const EdgeInsets.only(bottom: 88, top: 16),
-                      child: Row(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          Text('Done', style: muted),
-                          Icon(
-                            Icons.keyboard_arrow_down,
-                            color: scheme.outline,
-                          ),
-                        ],
-                      ),
-                    ),
-                  ],
-                ),
+    Future<void> pickDate() async {
+      final picked = await showDatePicker(
+        context: context,
+        initialDate: period.start,
+        firstDate: DateTime(2000),
+        lastDate: DateTime(2100),
+      );
+      if (picked != null) onShow(Period.of(period.kind, picked));
+    }
+
+    final emptyText = switch (period) {
+      Day() when period.compareTo(current) < 0 => 'Nothing was left open.',
+      Day() => 'A clear page.',
+      _ => 'Nothing planned yet.',
+    };
+
+    return ListView(
+      padding: const EdgeInsets.fromLTRB(Noc.gutter, 22, Noc.gutter, 40),
+      children: [
+        Row(
+          crossAxisAlignment: CrossAxisAlignment.end,
+          children: [
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Kicker(periodKicker(period, today)),
+                  const SizedBox(height: 4),
+                  Text(periodHeading(period), style: Noc.display),
+                  const SizedBox(height: 4),
+                  Text(
+                    periodSub(period),
+                    style: Noc.meta.copyWith(fontSize: 13),
+                  ),
+                ],
+              ),
+            ),
+            IconButton(
+              tooltip: 'Previous',
+              icon: const Icon(Ph.caretLeft, size: 20),
+              onPressed: () => onShow(period.previous),
+            ),
+            IconButton(
+              tooltip: 'Next',
+              icon: const Icon(Ph.caretRight, size: 20),
+              onPressed: () => onShow(period.next),
+            ),
+            IconButton(
+              tooltip: 'Go to date',
+              icon: const Icon(Ph.calendarBlank, size: 20),
+              onPressed: pickDate,
+            ),
+          ],
+        ),
+        if (!isCurrent)
+          Align(
+            alignment: Alignment.centerLeft,
+            child: Padding(
+              padding: const EdgeInsets.only(top: 6),
+              child: NocButton.ghost(
+                '← Back to ${switch (period.kind) {
+                  PeriodKind.day => 'today',
+                  PeriodKind.week => 'this week',
+                  PeriodKind.month => 'this month',
+                }}',
+                small: true,
+                onPressed: () => onShow(current),
               ),
             ),
           ),
-          SliverToBoxAdapter(child: DoneSection(period: period)),
-          SliverToBoxAdapter(child: JournalEditor(period: period)),
-          // Room for the FAB below the editor.
-          const SliverToBoxAdapter(child: SizedBox(height: 96)),
-        ],
-      ),
+        const SizedBox(height: 18),
+        Row(
+          children: [
+            Expanded(
+              child: NocProgress(value: total == 0 ? 0 : doneCount / total),
+            ),
+            const SizedBox(width: 10),
+            Text(
+              total == 0 ? 'No tasks' : '$doneCount of $total done',
+              style: Noc.meta,
+            ),
+          ],
+        ),
+        if (period case final Day day) LeftoversCard(day: day),
+        const SizedBox(height: 14),
+        for (final task in open) TaskTile(period: period, task: task),
+        if (open.isEmpty)
+          Ruled(
+            child: Padding(
+              padding: const EdgeInsets.symmetric(vertical: 22),
+              child: Text(
+                emptyText,
+                style: const TextStyle(fontSize: 15, color: Noc.neutral400),
+              ),
+            ),
+          ),
+        Ruled(
+          child: InkWell(
+            onTap: onAdd,
+            child: const Padding(
+              padding: EdgeInsets.symmetric(vertical: 13),
+              child: Row(
+                children: [
+                  Icon(Ph.plus, size: 22, color: Noc.accent300),
+                  SizedBox(width: 14),
+                  Text(
+                    'Add a task',
+                    style: TextStyle(fontSize: 15, color: Noc.accent300),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+        const SizedBox(height: 40),
+        DoneSection(period: period),
+        JournalEditor(period: period),
+      ],
     );
   }
 }

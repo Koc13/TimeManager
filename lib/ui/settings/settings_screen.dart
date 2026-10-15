@@ -3,7 +3,9 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../providers/data_providers.dart';
 import '../feedback.dart';
-import '../todo/done_section.dart' show SectionHeader;
+import '../noc_app_bar.dart';
+import '../theme/nocturne.dart';
+import '../theme/widgets.dart';
 import 'plan_reminder_tiles.dart';
 
 /// App settings: where the data lives, and the plan/review reminders.
@@ -32,7 +34,6 @@ class SettingsScreen extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final store = ref.watch(dataStoreProvider);
     final data = ref.watch(appDataProvider);
-    final muted = TextStyle(color: Theme.of(context).colorScheme.outline);
     final files =
         data.periods.length +
         data.goals.length +
@@ -42,38 +43,62 @@ class SettingsScreen extends ConsumerWidget {
     return Scaffold(
       key: scaffoldKey,
       drawer: drawer,
-      appBar: AppBar(title: const Text('Settings')),
+      appBar: NocAppBar(scaffoldKey: scaffoldKey, title: 'Settings'),
       body: ListView(
+        padding: const EdgeInsets.fromLTRB(Noc.gutter, 22, Noc.gutter, 40),
         children: [
-          const SectionHeader('Data'),
-          ListTile(
-            leading: const Icon(Icons.folder_outlined),
-            title: const Text('Data folder'),
-            subtitle: Text(store.root),
-            trailing: TextButton(
-              onPressed: () => _changeFolder(context, ref),
-              child: const Text('Change'),
+          const Kicker('Data folder'),
+          const SizedBox(height: 10),
+          NocCard(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(store.root, style: const TextStyle(fontSize: 13)),
+                const SizedBox(height: 6),
+                Text(
+                  '$files files · loaded in '
+                  '${(store.lastLoadTime.inMilliseconds / 1000).toStringAsFixed(2)} s',
+                  style: const TextStyle(
+                    fontSize: 11,
+                    color: Color(0x80E9E9ED),
+                    fontFeatures: [FontFeature.tabularFigures()],
+                  ),
+                ),
+                const SizedBox(height: 10),
+                Row(
+                  children: [
+                    NocButton(
+                      'Change',
+                      small: true,
+                      onPressed: () => _changeFolder(context, ref),
+                    ),
+                    const SizedBox(width: 8),
+                    NocButton.secondary(
+                      'Reload files',
+                      small: true,
+                      onPressed: () => runAction(context, () async {
+                        await ref.read(appDataProvider.notifier).reload();
+                        if (context.mounted) {
+                          ScaffoldMessenger.maybeOf(context)?.showSnackBar(
+                            const SnackBar(content: Text('Files reloaded')),
+                          );
+                        }
+                      }),
+                    ),
+                  ],
+                ),
+              ],
             ),
           ),
-          Padding(
-            padding: const EdgeInsets.fromLTRB(72, 0, 16, 8),
-            child: Text(
-              'Pick the folder Syncthing shares. An empty folder starts '
-              'fresh; this folder\'s files stay where they are.',
-              style: muted,
-            ),
+          const SizedBox(height: 10),
+          Text(
+            'Pick the folder Syncthing shares. An empty folder starts fresh; '
+            'this folder\'s files stay where they are.',
+            style: Noc.meta,
           ),
-          ListTile(
-            leading: const Icon(Icons.refresh),
-            title: const Text('Reload files'),
-            subtitle: Text(
-              '$files files · loaded in '
-              '${store.lastLoadTime.inMilliseconds} ms',
-            ),
-            onTap: () =>
-                runAction(context, ref.read(appDataProvider.notifier).reload),
-          ),
-          const SectionHeader('Reminders'),
+          const SizedBox(height: 34),
+          const Kicker('Reminders'),
+          const SizedBox(height: 6),
           const PlanReminderTiles(),
         ],
       ),

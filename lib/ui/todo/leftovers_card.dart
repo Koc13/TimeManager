@@ -4,10 +4,12 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../domain/period.dart';
 import '../../domain/task.dart';
 import '../../domain/task_rules.dart';
+import '../../providers/actions/task_actions.dart';
 import '../../providers/data_providers.dart';
 import '../feedback.dart';
 import '../format.dart';
-import '../../providers/actions/task_actions.dart';
+import '../theme/nocturne.dart';
+import '../theme/widgets.dart';
 
 /// Unfinished tasks offered for [day]: on today's page, what's left from
 /// earlier days; on tomorrow's page (planning in the evening), what's still
@@ -24,87 +26,114 @@ class LeftoversCard extends ConsumerWidget {
     final items = leftovers(ref.watch(appDataProvider), day, today);
     if (items.isEmpty) return const SizedBox.shrink();
 
-    final data = ref.read(taskActionsProvider);
-    final theme = Theme.of(context);
+    final actions = ref.read(taskActionsProvider);
     final planningTomorrow = day != Day(today);
     final onlyToday = items.every((i) => i.from == Day(today));
 
     Future<void> drop(List<({Day from, Task task})> chosen) async {
       final messenger = ScaffoldMessenger.maybeOf(context);
-      await runAction(context, () => data.dropLeftovers(chosen));
+      await runAction(context, () => actions.dropLeftovers(chosen));
+      messenger?.hideCurrentSnackBar();
       messenger?.showSnackBar(
         SnackBar(
           content: Text(
             chosen.length == 1
-                ? 'Discarded "${chosen.single.task.title}"'
+                ? 'Discarded “${chosen.single.task.title}”'
                 : 'Discarded ${chosen.length} tasks',
           ),
+          duration: const Duration(milliseconds: 4500),
           action: SnackBarAction(
             label: 'Undo',
-            onPressed: () => data.dropLeftovers(chosen, undo: true),
+            onPressed: () => actions.dropLeftovers(chosen, undo: true),
           ),
         ),
       );
     }
 
-    return Card(
-      margin: const EdgeInsets.fromLTRB(12, 8, 12, 4),
-      color: theme.colorScheme.secondaryContainer,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          Padding(
-            padding: const EdgeInsets.fromLTRB(16, 12, 8, 0),
-            child: Row(
+    String fromLabel(({Day from, Task task}) item) {
+      final from = item.from == Day(today)
+          ? 'From today'
+          : 'From ${weekdayLong(item.from.date.weekday)} '
+                '${dayLabel(item.from.date).substring(4)}';
+      final carried = item.task.rolledOver;
+      return carried > 0 ? '$from · ↻ +$carried' : from;
+    }
+
+    return Padding(
+      padding: const EdgeInsets.only(top: 22),
+      child: NocCard(
+        padding: const EdgeInsets.fromLTRB(16, 14, 16, 6),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Row(
               children: [
                 Expanded(
-                  child: Text(
+                  child: Kicker(
                     planningTomorrow && onlyToday
-                        ? 'Still open today (${items.length})'
-                        : 'Unfinished from before (${items.length})',
-                    style: theme.textTheme.titleSmall,
+                        ? 'Still open today'
+                        : 'Unfinished from before',
                   ),
                 ),
-                TextButton(
-                  onPressed: () => drop(items),
-                  child: const Text('Discard all'),
+                NocButton.ghost(
+                  'Keep all',
+                  small: true,
+                  onPressed: () => runAction(
+                    context,
+                    () => actions.keepLeftovers(items, day),
+                  ),
                 ),
-                TextButton(
-                  onPressed: () =>
-                      runAction(context, () => data.keepLeftovers(items, day)),
-                  child: const Text('Keep all'),
+                NocButton.ghost(
+                  'Discard all',
+                  small: true,
+                  color: Noc.neutral400,
+                  onPressed: () => drop(items),
                 ),
               ],
             ),
-          ),
-          for (final item in items)
-            ListTile(
-              dense: true,
-              title: Text(item.task.title),
-              subtitle: item.from == Day(today)
-                  ? null
-                  : Text(dayLabel(item.from.date)),
-              trailing: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  IconButton(
-                    tooltip: 'Discard',
-                    icon: const Icon(Icons.close),
-                    onPressed: () => drop([item]),
+            for (final item in items)
+              Ruled(
+                top: true,
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 9),
+                  child: Row(
+                    children: [
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(item.task.title, style: Noc.secondary),
+                            Text(
+                              fromLabel(item),
+                              style: const TextStyle(
+                                fontSize: 11,
+                                color: Noc.neutral400,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      NocButton(
+                        'Keep',
+                        small: true,
+                        onPressed: () => runAction(
+                          context,
+                          () => actions.keepLeftovers([item], day),
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      NocButton.secondary(
+                        'Discard',
+                        small: true,
+                        onPressed: () => drop([item]),
+                      ),
+                    ],
                   ),
-                  IconButton(
-                    tooltip: 'Keep',
-                    icon: const Icon(Icons.add),
-                    onPressed: () => runAction(
-                      context,
-                      () => data.keepLeftovers([item], day),
-                    ),
-                  ),
-                ],
+                ),
               ),
-            ),
-          const SizedBox(height: 4),
-        ],
+          ],
+        ),
       ),
     );
   }

@@ -3,6 +3,9 @@ import 'package:flutter/material.dart';
 import '../storage/data_store.dart';
 import '../storage/local_settings.dart';
 import 'data_folder.dart';
+import 'theme/widgets.dart';
+import 'theme/nocturne.dart';
+import 'theme/icons.dart';
 
 /// First run (or a folder that can no longer be opened): pick the data
 /// root folder and get permission to read it.
@@ -62,16 +65,14 @@ class _SetupScreenState extends State<SetupScreen> {
               ),
               if (_error != null) ...[
                 const SizedBox(height: 16),
-                Text(
-                  _error!,
-                  style: TextStyle(color: Theme.of(context).colorScheme.error),
-                ),
+                Text(_error!, style: const TextStyle(color: Noc.accent200)),
               ],
               const SizedBox(height: 24),
-              FilledButton.icon(
+              NocButton(
+                'Choose data folder',
+                big: true,
+                icon: Ph.folderOpen,
                 onPressed: _busy ? null : _choose,
-                icon: const Icon(Icons.folder_open),
-                label: const Text('Choose data folder'),
               ),
             ],
           ),

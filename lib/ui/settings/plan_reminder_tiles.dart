@@ -6,6 +6,9 @@ import '../../domain/plan_reminders.dart';
 import '../../providers/plan_reminders.dart';
 import '../feedback.dart';
 import '../format.dart';
+import '../theme/nocturne.dart';
+import '../theme/widgets.dart';
+import '../theme/icons.dart';
 
 /// One row per plan/review reminder: switch to turn it on or off, tap to
 /// change when it fires.
@@ -19,55 +22,85 @@ class PlanReminderTiles extends ConsumerWidget {
     return Column(
       children: [
         for (final reminder in PlanReminder.values)
-          ListTile(
-            leading: Icon(switch (reminder.kind) {
-              PeriodKind.day => Icons.today_outlined,
-              PeriodKind.week => Icons.view_week_outlined,
-              PeriodKind.month => Icons.calendar_month_outlined,
-            }),
-            title: Text(reminder.title),
-            subtitle: Text(scheduleLabel(reminder, settings[reminder]!)),
-            enabled: settings[reminder]!.enabled,
-            trailing: Switch(
-              value: settings[reminder]!.enabled,
-              onChanged: (on) => runAction(
-                context,
-                () => controller.set(
-                  reminder,
-                  settings[reminder]!.copyWith(enabled: on),
+          Ruled(
+            child: InkWell(
+              onTap: () async {
+                final time = await showDialog<ReminderTime>(
+                  context: context,
+                  builder: (_) => _ReminderEditor(
+                    reminder: reminder,
+                    time: settings[reminder]!,
+                  ),
+                );
+                if (time != null && context.mounted) {
+                  await runAction(
+                    context,
+                    () => controller.set(reminder, time),
+                  );
+                }
+              },
+              child: Padding(
+                padding: const EdgeInsets.symmetric(vertical: 8),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: Opacity(
+                        opacity: settings[reminder]!.enabled ? 1 : 0.5,
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              reminder.title,
+                              style: const TextStyle(fontSize: 15),
+                            ),
+                            Text(
+                              scheduleLabel(reminder, settings[reminder]!),
+                              style: Noc.meta,
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    NocSwitch(
+                      value: settings[reminder]!.enabled,
+                      onChanged: (on) => runAction(
+                        context,
+                        () => controller.set(
+                          reminder,
+                          settings[reminder]!.copyWith(enabled: on),
+                        ),
+                      ),
+                    ),
+                  ],
                 ),
               ),
             ),
-            onTap: () async {
-              final time = await showDialog<ReminderTime>(
-                context: context,
-                builder: (_) => _ReminderEditor(
-                  reminder: reminder,
-                  time: settings[reminder]!,
-                ),
-              );
-              if (time != null && context.mounted) {
-                await runAction(context, () => controller.set(reminder, time));
-              }
-            },
           ),
       ],
     );
   }
 }
 
-/// "Every day at 08:00", "Sundays at 20:00", "On the last day at 20:00".
+/// "Every day · 08:00", "Sundays · 20:00", "Last day · 20:00", "1st · 08:00".
 String scheduleLabel(PlanReminder reminder, ReminderTime time) {
   final at = _clock(time.minute);
   return switch (reminder.kind) {
-    PeriodKind.day => 'Every day at $at',
-    PeriodKind.week => '${weekdayLong(time.weekday)}s at $at',
+    PeriodKind.day => 'Every day · $at',
+    PeriodKind.week => '${weekdayLong(time.weekday)}s · $at',
     PeriodKind.month =>
       time.monthDay == lastDay
-          ? 'On the last day of the month at $at'
-          : 'On day ${time.monthDay} of the month at $at',
+          ? 'Last day · $at'
+          : '${_ordinal(time.monthDay)} · $at',
   };
 }
+
+String _ordinal(int n) => switch (n) {
+  1 || 21 => '${n}st',
+  2 || 22 => '${n}nd',
+  3 || 23 => '${n}rd',
+  _ => '${n}th',
+};
 
 String _clock(int minute) =>
     '${(minute ~/ 60).toString().padLeft(2, '0')}:'
@@ -119,9 +152,9 @@ class _ReminderEditorState extends State<_ReminderEditor> {
                   setState(() => _time = _time.copyWith(monthDay: d)),
             ),
           const SizedBox(height: 12),
-          OutlinedButton.icon(
-            icon: const Icon(Icons.schedule),
-            label: Text(_clock(_time.minute)),
+          NocButton.secondary(
+            _clock(_time.minute),
+            icon: Ph.clock,
             onPressed: () async {
               final picked = await showTimePicker(
                 context: context,
@@ -142,14 +175,8 @@ class _ReminderEditorState extends State<_ReminderEditor> {
         ],
       ),
       actions: [
-        TextButton(
-          onPressed: () => Navigator.pop(context),
-          child: const Text('Cancel'),
-        ),
-        FilledButton(
-          onPressed: () => Navigator.pop(context, _time),
-          child: const Text('Save'),
-        ),
+        NocButton.secondary('Cancel', onPressed: () => Navigator.pop(context)),
+        NocButton('Save', onPressed: () => Navigator.pop(context, _time)),
       ],
     );
   }

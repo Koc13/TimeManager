@@ -6,6 +6,8 @@ import '../../providers/data_providers.dart';
 import '../../providers/plan_reminders.dart';
 import '../feedback.dart';
 import '../format.dart';
+import '../noc_app_bar.dart';
+import '../theme/widgets.dart';
 import 'task_editor.dart';
 import 'period_page.dart';
 import '../../providers/actions/task_actions.dart';
@@ -52,21 +54,12 @@ class _TodoPagerState extends ConsumerState<TodoPager> {
 
   Period get _period => _periods[_page];
 
-  void _show(Period period) => setState(() => _periods[_page] = period);
-
-  Future<void> _pickDate() async {
-    final picked = await showDatePicker(
-      context: context,
-      initialDate: _period.start,
-      firstDate: DateTime(2000),
-      lastDate: DateTime(2100),
-    );
-    if (picked != null) _show(Period.of(_period.kind, picked));
-  }
-
   Future<void> _add() async {
     final period = _period;
-    final result = await showTaskEditor(context);
+    final result = await showTaskEditor(
+      context,
+      listName: listLabel(period, ref.read(todayProvider)),
+    );
     if (result == null || !mounted) return;
     final data = ref.read(taskActionsProvider);
     final repeat = result.repeat;
@@ -121,41 +114,23 @@ class _TodoPagerState extends ConsumerState<TodoPager> {
       });
       _pages.jumpToPage(page);
     });
-    final isCurrent =
-        _period == Period.of(_period.kind, ref.watch(todayProvider));
-
     return Scaffold(
       key: widget.scaffoldKey,
       drawer: widget.drawer,
-      appBar: AppBar(
-        title: GestureDetector(
-          // Tapping the title jumps back to the current period.
-          onTap: () => _show(Period.of(_period.kind, ref.read(todayProvider))),
-          child: Text(
-            periodLabel(_period),
-            style: isCurrent
-                ? null
-                : TextStyle(color: Theme.of(context).colorScheme.primary),
-          ),
+      appBar: NocAppBar(
+        scaffoldKey: widget.scaffoldKey,
+        center: NocSegmented<int>(
+          options: const [(0, 'Day'), (1, 'Week'), (2, 'Month')],
+          selected: _page,
+          onChanged: (page) {
+            setState(() => _page = page);
+            _pages.animateToPage(
+              page,
+              duration: const Duration(milliseconds: 250),
+              curve: Curves.easeOutCubic,
+            );
+          },
         ),
-        actions: [
-          IconButton(
-            tooltip: 'Previous',
-            icon: const Icon(Icons.chevron_left),
-            onPressed: () => _show(_period.previous),
-          ),
-          IconButton(
-            tooltip: 'Next',
-            icon: const Icon(Icons.chevron_right),
-            onPressed: () => _show(_period.next),
-          ),
-          IconButton(
-            tooltip: 'Go to date',
-            icon: const Icon(Icons.calendar_today_outlined),
-            onPressed: _pickDate,
-          ),
-        ],
-        bottom: _PageDots(page: _page),
       ),
       body: NotificationListener<OverscrollNotification>(
         onNotification: _onOverscroll,
@@ -165,49 +140,15 @@ class _TodoPagerState extends ConsumerState<TodoPager> {
           // notifications at the first page on every platform.
           physics: const PageScrollPhysics(parent: ClampingScrollPhysics()),
           onPageChanged: (page) => setState(() => _page = page),
-          children: [for (final period in _periods) PeriodPage(period: period)],
-        ),
-      ),
-      floatingActionButton: FloatingActionButton(
-        tooltip: 'Add task',
-        onPressed: _add,
-        child: const Icon(Icons.add),
-      ),
-    );
-  }
-}
-
-/// "Day · Week · Month" with the current page highlighted.
-class _PageDots extends StatelessWidget implements PreferredSizeWidget {
-  const _PageDots({required this.page});
-
-  final int page;
-
-  @override
-  Size get preferredSize => const Size.fromHeight(24);
-
-  @override
-  Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
-    const labels = ['Day', 'Week', 'Month'];
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 6),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          for (var i = 0; i < labels.length; i++)
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 10),
-              child: Text(
-                labels[i],
-                style: TextStyle(
-                  fontSize: 12,
-                  fontWeight: i == page ? FontWeight.w600 : null,
-                  color: i == page ? scheme.primary : scheme.onSurfaceVariant,
-                ),
+          children: [
+            for (final (i, period) in _periods.indexed)
+              PeriodPage(
+                period: period,
+                onShow: (p) => setState(() => _periods[i] = p),
+                onAdd: _add,
               ),
-            ),
-        ],
+          ],
+        ),
       ),
     );
   }

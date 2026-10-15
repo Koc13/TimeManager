@@ -3,13 +3,16 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../domain/aggregation.dart';
 import '../../domain/period.dart';
+import '../../providers/actions/task_actions.dart';
 import '../../providers/data_providers.dart';
 import '../feedback.dart';
 import '../format.dart';
-import '../../providers/actions/task_actions.dart';
+import '../theme/nocturne.dart';
+import '../theme/widgets.dart';
 
-/// The period's Done page: tasks completed in it (from any list), then
-/// "Other" activity from the timer and trackers. Everything is derived.
+/// Below the list: what got done in this period (from any list, plus
+/// discarded leftovers), then session time per target, then habit entries
+/// and goal logs. All derived.
 class DoneSection extends ConsumerWidget {
   const DoneSection({super.key, required this.period});
 
@@ -18,131 +21,155 @@ class DoneSection extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final data = ref.watch(appDataProvider);
+    final today = ref.watch(todayProvider);
     final done = doneTasks(data, period);
+    final dropped = [
+      for (final t in data.period(period).tasks)
+        if (t.droppedAt != null) t,
+    ];
     final activity = activityIn(data, period);
-    final muted = TextStyle(color: Theme.of(context).colorScheme.outline);
+    final singleDay = period.kind == PeriodKind.day;
+
+    Widget line(String left, String right) => Ruled(
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 9),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.baseline,
+          textBaseline: TextBaseline.alphabetic,
+          children: [
+            Expanded(child: Text(left, style: Noc.secondary)),
+            const SizedBox(width: 10),
+            Text(
+              right,
+              style: Noc.secondary.copyWith(
+                color: Noc.neutral300,
+                fontFeatures: const [FontFeature.tabularFigures()],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        const SectionHeader('Done'),
-        if (done.isEmpty)
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-            child: Text('Nothing completed yet', style: muted),
-          ),
+        SectionTitle('Done', count: '${done.length}'),
+        const SizedBox(height: 6),
         for (final (:list, :task) in done)
-          ListTile(
-            dense: true,
-            leading: Checkbox(
-              value: true,
-              onChanged: (_) => runAction(
-                context,
-                () => ref.read(taskActionsProvider).setDone(list, task, false),
+          Ruled(
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Transform.translate(
+                  offset: const Offset(-11, 0),
+                  child: NocCheckbox(
+                    checked: true,
+                    semanticLabel: 'Mark open',
+                    onTap: () => runAction(
+                      context,
+                      () => ref
+                          .read(taskActionsProvider)
+                          .setDone(list, task, false),
+                    ),
+                  ),
+                ),
+                Expanded(
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 11),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          task.title,
+                          style: const TextStyle(
+                            fontSize: 14,
+                            color: Noc.neutral400,
+                            decoration: TextDecoration.lineThrough,
+                            decorationColor: Noc.neutral600,
+                          ),
+                        ),
+                        if (list != period)
+                          Padding(
+                            padding: const EdgeInsets.only(top: 2),
+                            child: Text(
+                              'from ${listLabel(list, today)}',
+                              style: Noc.small,
+                            ),
+                          ),
+                      ],
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        for (final task in dropped)
+          Ruled(
+            child: Padding(
+              padding: const EdgeInsets.symmetric(vertical: 11),
+              child: Row(
+                children: [
+                  const SizedBox(
+                    width: 22,
+                    child: Text(
+                      '—',
+                      textAlign: TextAlign.center,
+                      style: TextStyle(color: Noc.neutral600),
+                    ),
+                  ),
+                  const SizedBox(width: 14),
+                  Expanded(
+                    child: Text(
+                      task.title,
+                      style: const TextStyle(
+                        fontSize: 14,
+                        color: Noc.neutral500,
+                        decoration: TextDecoration.lineThrough,
+                      ),
+                    ),
+                  ),
+                  const Text('Discarded', style: Noc.small),
+                ],
               ),
             ),
-            title: Text(task.title),
-            subtitle: Text(
-              [
-                timeLabel(task.doneAt!),
-                if (list != period) 'from ${periodLabel(list)}',
-              ].join('  ·  '),
-            ),
           ),
-        // Discarded leftovers stay visible in their day's history.
-        for (final task in data.period(period).tasks)
-          if (task.droppedAt != null)
-            ListTile(
-              dense: true,
-              leading: const Padding(
-                padding: EdgeInsets.symmetric(horizontal: 12),
-                child: Icon(Icons.close, size: 18),
-              ),
-              title: Text(
-                task.title,
-                style: muted.copyWith(decoration: TextDecoration.lineThrough),
-              ),
-              subtitle: Text('Discarded', style: muted),
-            ),
-        const SectionHeader('Other'),
-        if (activity.isEmpty)
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-            child: Text('No sessions, habits or logs', style: muted),
-          ),
-        for (final s in activity.sessions)
-          _Line(
-            icon: Icons.timer_outlined,
-            text:
-                '${targetName(data, s.target)}: ${minutesLabel(s.minutes)}, '
-                '${s.count} session${s.count == 1 ? '' : 's'}',
-          ),
-        for (final h in activity.habits)
-          _Line(
-            icon: Icons.repeat,
-            text: habitSummary(
-              data.habits[h.habit],
-              h,
-              singleDay: period.kind == PeriodKind.day,
-            ),
-          ),
-        for (final log in activity.goalLogs)
-          _Line(
-            icon: Icons.flag_outlined,
-            text: [
-              data.goals[log.goal]?.title ?? '(deleted goal)',
-              if (log.amount != null) amountLabel(log.amount!, log.unit),
-              if (log.source != null) log.source!,
-            ].join(' · '),
-          ),
-      ],
-    );
-  }
-}
-
-class SectionHeader extends StatelessWidget {
-  const SectionHeader(this.title, {super.key, this.trailing});
-
-  final String title;
-  final Widget? trailing;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 20, 8, 4),
-      child: Row(
-        children: [
-          Expanded(
+        if (done.isEmpty && dropped.isEmpty)
+          const Padding(
+            padding: EdgeInsets.symmetric(vertical: 12),
             child: Text(
-              title,
-              style: theme.textTheme.titleSmall?.copyWith(
-                color: theme.colorScheme.primary,
-              ),
+              'Nothing finished yet.',
+              style: TextStyle(fontSize: 13, color: Noc.neutral500),
             ),
           ),
-          ?trailing,
+        if (activity.sessions.isNotEmpty) ...[
+          const SizedBox(height: 34),
+          const SectionTitle('Time'),
+          const SizedBox(height: 6),
+          for (final s in activity.sessions)
+            line(targetName(data, s.target), minutesLabel(s.minutes)),
         ],
-      ),
+        // Habit entries and goal logs ("Other" activity).
+        if (activity.habits.isNotEmpty || activity.goalLogs.isNotEmpty) ...[
+          const SizedBox(height: 34),
+          const SectionTitle('Logged'),
+          const SizedBox(height: 6),
+          for (final h in activity.habits)
+            line(
+              data.habits[h.habit]?.title ?? '(deleted habit)',
+              habitAmount(data.habits[h.habit], h, singleDay: singleDay),
+            ),
+          for (final log in activity.goalLogs)
+            line(
+              [
+                data.goals[log.goal]?.title ?? '(deleted goal)',
+                if (log.source != null) log.source!,
+              ].join(' · '),
+              log.amount == null ? '' : amountLabel(log.amount!, log.unit),
+            ),
+        ],
+        const SizedBox(height: 34),
+      ],
     );
   }
-}
-
-class _Line extends StatelessWidget {
-  const _Line({required this.icon, required this.text});
-
-  final IconData icon;
-  final String text;
-
-  @override
-  Widget build(BuildContext context) => Padding(
-    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
-    child: Row(
-      children: [
-        Icon(icon, size: 18, color: Theme.of(context).colorScheme.outline),
-        const SizedBox(width: 12),
-        Expanded(child: Text(text)),
-      ],
-    ),
-  );
 }

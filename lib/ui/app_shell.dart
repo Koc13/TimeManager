@@ -13,14 +13,18 @@ import '../providers/reminder_sync.dart';
 import '../providers/timer_controller.dart';
 import 'goals/goal_feedback.dart';
 import 'feedback.dart';
+import 'nav_drawer.dart';
+import 'navigation.dart';
+import 'theme/nocturne.dart';
+
 import 'goals/goals_screen.dart';
 import 'habits/habits_screen.dart';
 import 'settings/settings_screen.dart';
 import 'timer/timer_screen.dart';
 import 'todo/todo_pager.dart';
 import '../providers/actions/task_actions.dart';
-
-enum Section { todo, timer, goals, habits, settings }
+import 'theme/widgets.dart';
+import 'theme/icons.dart';
 
 /// Switches between the four drawer sections and owns app-wide timing:
 /// rollover and recurring tasks on start, at midnight, and on resume (after reloading files,
@@ -38,12 +42,6 @@ class AppShell extends ConsumerStatefulWidget {
 
 class _AppShellState extends ConsumerState<AppShell>
     with WidgetsBindingObserver {
-  // A cold start opens the Daily ToDo, or the Timer while a work block or
-  // break is running or waiting at its break offer. Coming back from the
-  // background keeps whatever section was open (this state survives).
-  late Section _section = ref.read(timerProvider) == null
-      ? Section.todo
-      : Section.timer;
   Timer? _midnight;
   StreamSubscription<String>? _taps;
 
@@ -61,9 +59,9 @@ class _AppShellState extends ConsumerState<AppShell>
     _taps = ref.read(notificationsProvider).taps.listen((payload) {
       if (!mounted) return;
       _scaffold.currentState?.closeDrawer();
-      setState(
-        () => _section = payload == timerPayload ? Section.timer : Section.todo,
-      );
+      ref
+          .read(sectionProvider.notifier)
+          .go(payload == timerPayload ? Section.timer : Section.todo);
       // A plan/review reminder ("open:week") also picks the list.
       if (payload.startsWith('open:')) {
         final kind = PeriodKind.values.asNameMap()[payload.substring(5)];
@@ -115,7 +113,7 @@ class _AppShellState extends ConsumerState<AppShell>
 
   void _go(Section section) {
     _scaffold.currentState?.closeDrawer();
-    setState(() => _section = section);
+    ref.read(sectionProvider.notifier).go(section);
   }
 
   // Back is always claimed (canPop: false) and resolved here, in order:
@@ -132,8 +130,8 @@ class _AppShellState extends ConsumerState<AppShell>
     final scaffold = _scaffold.currentState;
     if (scaffold != null && scaffold.isDrawerOpen) {
       scaffold.closeDrawer();
-    } else if (_section != Section.todo) {
-      setState(() => _section = Section.todo);
+    } else if (ref.read(sectionProvider) != Section.todo) {
+      ref.read(sectionProvider.notifier).go(Section.todo);
     } else {
       SystemNavigator.pop();
     }
@@ -156,13 +154,14 @@ class _AppShellState extends ConsumerState<AppShell>
     final issues = ref.watch(storeIssuesProvider);
     final hasIssues =
         issues.conflicts.isNotEmpty || issues.unreadable.isNotEmpty;
-    final drawer = AppDrawer(selected: _section, onSelect: _go);
+    final section = ref.watch(sectionProvider);
+    final drawer = NavDrawer(onSelect: _go);
     return PopScope(
       canPop: false,
       onPopInvokedWithResult: _onBack,
       child: _WithIssues(
         show: hasIssues,
-        child: switch (_section) {
+        child: switch (section) {
           Section.todo => TodoPager(scaffoldKey: _scaffold, drawer: drawer),
           Section.timer => TimerScreen(scaffoldKey: _scaffold, drawer: drawer),
           Section.goals => GoalsScreen(scaffoldKey: _scaffold, drawer: drawer),
@@ -176,43 +175,6 @@ class _AppShellState extends ConsumerState<AppShell>
           ),
         },
       ),
-    );
-  }
-}
-
-class AppDrawer extends StatelessWidget {
-  const AppDrawer({super.key, required this.selected, required this.onSelect});
-
-  final Section selected;
-  final ValueChanged<Section> onSelect;
-
-  @override
-  Widget build(BuildContext context) {
-    const items = [
-      (Section.todo, Icons.checklist, 'ToDo'),
-      (Section.timer, Icons.timer_outlined, 'Timer'),
-      (Section.goals, Icons.flag_outlined, 'Goals'),
-      (Section.habits, Icons.repeat, 'Habits'),
-      // Below a divider: the four sections are the app; this configures it.
-      (Section.settings, Icons.settings_outlined, 'Settings'),
-    ];
-    return NavigationDrawer(
-      selectedIndex: items.indexWhere((i) => i.$1 == selected),
-      onDestinationSelected: (i) => onSelect(items[i].$1),
-      children: [
-        const Padding(
-          padding: EdgeInsets.fromLTRB(28, 16, 16, 10),
-          child: Text('Time Manager'),
-        ),
-        for (final (section, icon, label) in items) ...[
-          if (section == Section.settings)
-            const Padding(
-              padding: EdgeInsets.symmetric(horizontal: 28, vertical: 8),
-              child: Divider(),
-            ),
-          NavigationDrawerDestination(icon: Icon(icon), label: Text(label)),
-        ],
-      ],
     );
   }
 }
@@ -251,7 +213,6 @@ class IssuesBanner extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final (:conflicts, :unreadable) = ref.watch(storeIssuesProvider);
-    final scheme = Theme.of(context).colorScheme;
     final parts = [
       if (conflicts.isNotEmpty)
         '${conflicts.length} sync conflict${conflicts.length == 1 ? '' : 's'}',
@@ -259,7 +220,7 @@ class IssuesBanner extends ConsumerWidget {
         '${unreadable.length} unreadable file${unreadable.length == 1 ? '' : 's'}',
     ];
     return Material(
-      color: scheme.errorContainer,
+      color: Noc.accent800,
       child: InkWell(
         onTap: () => showDialog<void>(
           context: context,
@@ -293,17 +254,14 @@ class IssuesBanner extends ConsumerWidget {
               ),
             ),
             actions: [
-              TextButton(
+              NocButton.secondary(
+                'Reload',
                 onPressed: () {
                   Navigator.pop(context);
                   runAction(context, ref.read(appDataProvider.notifier).reload);
                 },
-                child: const Text('Reload'),
               ),
-              FilledButton(
-                onPressed: () => Navigator.pop(context),
-                child: const Text('OK'),
-              ),
+              NocButton('OK', onPressed: () => Navigator.pop(context)),
             ],
           ),
         ),
@@ -314,15 +272,15 @@ class IssuesBanner extends ConsumerWidget {
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
             child: Row(
               children: [
-                Icon(Icons.warning_amber, color: scheme.onErrorContainer),
+                const Icon(Ph.warning, color: Noc.neutral100),
                 const SizedBox(width: 12),
                 Expanded(
                   child: Text(
                     '${parts.join(' and ')} in your data folder',
-                    style: TextStyle(color: scheme.onErrorContainer),
+                    style: const TextStyle(color: Noc.neutral100, fontSize: 13),
                   ),
                 ),
-                Icon(Icons.chevron_right, color: scheme.onErrorContainer),
+                const Icon(Ph.caretRight, color: Noc.neutral100),
               ],
             ),
           ),

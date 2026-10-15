@@ -1,15 +1,20 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../domain/aggregation.dart';
 import '../../domain/goal.dart';
 import '../../domain/period.dart';
+import '../../domain/recurring.dart';
 import '../../domain/target_ref.dart';
 import '../../domain/task.dart';
+import '../../domain/task_rules.dart';
+import '../../providers/actions/task_actions.dart';
 import '../../providers/data_providers.dart';
-import '../../domain/recurring.dart';
 import '../feedback.dart';
 import '../format.dart';
-import '../../providers/actions/task_actions.dart';
+import '../theme/nocturne.dart';
+import '../theme/widgets.dart';
+import '../theme/icons.dart';
 
 /// What the task sheet returns. [repeat] is only offered for new tasks;
 /// when set, the caller creates a recurring template instead of a task.
@@ -21,19 +26,22 @@ typedef TaskDraft = ({
   RepeatRule? repeat,
 });
 
-/// Bottom sheet for a task. Returns null on dismiss.
-Future<TaskDraft?> showTaskEditor(BuildContext context, {Task? task}) =>
-    showModalBottomSheet<TaskDraft>(
-      context: context,
-      isScrollControlled: true, // lets the sheet rise above the keyboard
-      showDragHandle: true,
-      builder: (_) => _TaskEditor(task: task),
-    );
+/// "New task · Today" (or "Edit task"). Returns null on dismiss.
+Future<TaskDraft?> showTaskEditor(
+  BuildContext context, {
+  Task? task,
+  String? listName,
+}) => showModalBottomSheet<TaskDraft>(
+  context: context,
+  isScrollControlled: true,
+  builder: (_) => _TaskEditor(task: task, listName: listName),
+);
 
 class _TaskEditor extends StatefulWidget {
-  const _TaskEditor({this.task});
+  const _TaskEditor({this.task, this.listName});
 
   final Task? task;
+  final String? listName;
 
   @override
   State<_TaskEditor> createState() => _TaskEditorState();
@@ -47,6 +55,12 @@ class _TaskEditorState extends State<_TaskEditor> {
   RepeatRule? _repeat;
 
   bool get _isNew => widget.task == null;
+
+  @override
+  void initState() {
+    super.initState();
+    _title.addListener(() => setState(() {}));
+  }
 
   @override
   void dispose() {
@@ -95,25 +109,20 @@ class _TaskEditorState extends State<_TaskEditor> {
   Future<void> _pickRepeat() async {
     final choice = await showModalBottomSheet<Object>(
       context: context,
-      showDragHandle: true,
-      builder: (context) => SafeArea(
-        child: ListView(
-          shrinkWrap: true,
-          children: [
-            for (final (label, value) in [
-              ('Never', 'never'),
-              ('Every day', const RepeatRule.daily()),
-              ('On chosen weekdays…', 'weekdays'),
-              ('Every week (weekly list)', const RepeatRule.weekly()),
-              ('Every month (monthly list)', const RepeatRule.monthly()),
-              ('Monthly on a day…', 'monthday'),
-            ])
-              ListTile(
-                title: Text(label),
-                onTap: () => Navigator.pop(context, value),
-              ),
-          ],
-        ),
+      isScrollControlled: true,
+      builder: (context) => _SheetList(
+        title: 'Repeat',
+        rows: [
+          for (final (label, value) in [
+            ('Never', 'never'),
+            ('Every day', const RepeatRule.daily()),
+            ('On chosen weekdays…', 'weekdays'),
+            ('Every week (weekly list)', const RepeatRule.weekly()),
+            ('Every month (monthly list)', const RepeatRule.monthly()),
+            ('Monthly on a day…', 'monthday'),
+          ])
+            (label, () => Navigator.pop(context, value), null),
+        ],
       ),
     );
     if (!mounted || choice == null) return;
@@ -136,20 +145,26 @@ class _TaskEditorState extends State<_TaskEditor> {
           title: const Text('Repeat on'),
           content: Wrap(
             spacing: 6,
+            runSpacing: 6,
             children: [
               for (var d = 1; d <= 7; d++)
-                FilterChip(
-                  label: Text(weekdayShort(d)),
-                  selected: days.contains(d),
-                  onSelected: (on) =>
-                      setDialog(() => on ? days.add(d) : days.remove(d)),
+                _Chip(
+                  label: weekdayShort(d),
+                  on: days.contains(d),
+                  onTap: () => setDialog(
+                    () => days.contains(d) ? days.remove(d) : days.add(d),
+                  ),
                 ),
             ],
           ),
           actions: [
-            FilledButton(
+            NocButton.secondary(
+              'Cancel',
+              onPressed: () => Navigator.pop(context),
+            ),
+            NocButton(
+              'OK',
               onPressed: () => Navigator.pop(context, days.isNotEmpty),
-              child: const Text('OK'),
             ),
           ],
         ),
@@ -173,12 +188,16 @@ class _TaskEditorState extends State<_TaskEditor> {
           ),
         ),
         actions: [
-          FilledButton(
+          NocButton.secondary(
+            'Cancel',
+            onPressed: () => Navigator.pop(context),
+          ),
+          NocButton(
+            'OK',
             onPressed: () {
               final d = int.tryParse(text.text.trim());
               if (d != null && d >= 1 && d <= 31) Navigator.pop(context, d);
             },
-            child: const Text('OK'),
           ),
         ],
       ),
@@ -191,182 +210,289 @@ class _TaskEditorState extends State<_TaskEditor> {
     final repeating = _repeat != null;
     return Padding(
       padding: EdgeInsets.fromLTRB(
-        16,
+        22,
         0,
-        16,
-        16 + MediaQuery.viewInsetsOf(context).bottom,
+        22,
+        28 + MediaQuery.viewInsetsOf(context).bottom,
       ),
       child: Column(
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
+          Text(
+            _isNew ? 'New task · ${widget.listName ?? ''}' : 'Edit task',
+            style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w500),
+          ),
+          const SizedBox(height: 14),
           TextField(
             controller: _title,
             autofocus: _isNew,
             textCapitalization: TextCapitalization.sentences,
-            decoration: const InputDecoration(labelText: 'Task'),
+            style: const TextStyle(fontSize: 15),
+            decoration: const InputDecoration(hintText: 'What needs doing?'),
             onSubmitted: (_) => _save(),
           ),
           const SizedBox(height: 16),
-          SegmentedButton<int>(
-            segments: const [
-              ButtonSegment(value: 1, label: Text('High')),
-              ButtonSegment(value: 2, label: Text('Medium')),
-              ButtonSegment(value: 3, label: Text('Low')),
-            ],
-            selected: {_priority},
-            onSelectionChanged: (s) => setState(() => _priority = s.single),
+          const Text('Priority', style: Noc.meta),
+          const SizedBox(height: 6),
+          Align(
+            alignment: Alignment.centerLeft,
+            child: NocSegmented<int>(
+              options: const [(1, 'High'), (2, 'Normal'), (3, 'Low')],
+              selected: _priority,
+              onChanged: (p) => setState(() => _priority = p),
+            ),
           ),
-          const SizedBox(height: 12),
+          const SizedBox(height: 14),
           Wrap(
             spacing: 8,
-            runSpacing: 4,
+            runSpacing: 8,
             children: [
+              if (_isNew)
+                _Chip(
+                  label: _repeat == null
+                      ? 'Repeat'
+                      : '↻ ${repeatShort(_repeat!)}',
+                  on: repeating,
+                  onTap: _pickRepeat,
+                  onClear: repeating
+                      ? () => setState(() => _repeat = null)
+                      : null,
+                ),
               if (!repeating)
-                _DateChip(
-                  icon: Icons.event,
-                  label: 'Deadline',
-                  value: _deadline == null ? null : dateTimeLabel(_deadline!),
-                  onPick: () async {
+                _Chip(
+                  label: _deadline == null
+                      ? 'Deadline'
+                      : 'Due ${dateTimeLabel(_deadline!)}',
+                  on: _deadline != null,
+                  onTap: () async {
                     final v = await _pickDateTime(_deadline);
                     if (v != null) setState(() => _deadline = v);
                   },
-                  onClear: () => setState(() => _deadline = null),
+                  onClear: _deadline == null
+                      ? null
+                      : () => setState(() => _deadline = null),
                 ),
-              _DateChip(
-                icon: Icons.notifications_outlined,
-                label: 'Reminder',
-                value: _reminder == null
-                    ? null
+              _Chip(
+                label: _reminder == null
+                    ? 'Reminder'
                     : repeating
-                    ? 'at ${timeLabel(_reminder!)}'
-                    : dateTimeLabel(_reminder!),
-                onPick: () async {
+                    ? 'Reminder ${timeLabel(_reminder!)}'
+                    : 'Reminder ${dateTimeLabel(_reminder!)}',
+                on: _reminder != null,
+                onTap: () async {
                   final v = await _pickDateTime(_reminder, timeOnly: repeating);
                   if (v != null) setState(() => _reminder = v);
                 },
-                onClear: () => setState(() => _reminder = null),
+                onClear: _reminder == null
+                    ? null
+                    : () => setState(() => _reminder = null),
               ),
-              if (_isNew)
-                ActionChip(
-                  avatar: const Icon(Icons.repeat, size: 18),
-                  label: Text(repeatLabel(_repeat)),
-                  onPressed: _pickRepeat,
-                ),
             ],
           ),
-          const SizedBox(height: 16),
-          FilledButton(onPressed: _save, child: const Text('Save')),
+          const SizedBox(height: 22),
+          NocButton(
+            _isNew ? 'Add task' : 'Save',
+            big: true,
+            onPressed: _title.text.trim().isEmpty ? null : _save,
+          ),
         ],
       ),
     );
   }
 }
 
-class _DateChip extends StatelessWidget {
-  const _DateChip({
-    required this.icon,
+/// A sheet chip: divider edge when off, accent edge with its value when
+/// on; an on chip can be cleared with its ×.
+class _Chip extends StatelessWidget {
+  const _Chip({
     required this.label,
-    required this.value,
-    required this.onPick,
-    required this.onClear,
+    required this.on,
+    required this.onTap,
+    this.onClear,
   });
 
-  final IconData icon;
   final String label;
-  final String? value;
-  final VoidCallback onPick;
-  final VoidCallback onClear;
+  final bool on;
+  final VoidCallback onTap;
+  final VoidCallback? onClear;
 
   @override
-  Widget build(BuildContext context) => value == null
-      ? ActionChip(
-          avatar: Icon(icon, size: 18),
-          label: Text(label),
-          onPressed: onPick,
-        )
-      : InputChip(
-          avatar: Icon(icon, size: 18),
-          label: Text(value!),
-          onPressed: onPick,
-          onDeleted: onClear,
-        );
+  Widget build(BuildContext context) => InkWell(
+    onTap: onTap,
+    borderRadius: BorderRadius.circular(6),
+    child: Container(
+      padding: EdgeInsets.fromLTRB(12, 6, onClear == null ? 12 : 6, 6),
+      decoration: BoxDecoration(
+        border: Border.all(color: on ? Noc.accent : Noc.divider),
+        borderRadius: BorderRadius.circular(6),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text(
+            label,
+            style: TextStyle(
+              fontSize: 12,
+              color: on ? Noc.accent300 : Noc.text,
+              fontFeatures: const [FontFeature.tabularFigures()],
+            ),
+          ),
+          if (onClear != null) ...[
+            const SizedBox(width: 4),
+            InkWell(
+              onTap: onClear,
+              child: const Icon(Ph.x, size: 14, color: Noc.neutral400),
+            ),
+          ],
+        ],
+      ),
+    ),
+  );
 }
 
-/// Long-press menu: edit, move to another list, delete.
+/// A bottom sheet with a title, an optional subtitle and ruled text rows.
+/// Each row is (label, onTap, colour).
+class _SheetList extends StatelessWidget {
+  const _SheetList({required this.title, this.subtitle, required this.rows});
+
+  final String title;
+  final String? subtitle;
+  final List<(String, VoidCallback, Color?)> rows;
+
+  @override
+  Widget build(BuildContext context) => SafeArea(
+    child: ConstrainedBox(
+      constraints: BoxConstraints(
+        maxHeight: MediaQuery.sizeOf(context).height * 0.78,
+      ),
+      child: ListView(
+        shrinkWrap: true,
+        padding: const EdgeInsets.fromLTRB(22, 0, 22, 28),
+        children: [
+          Text(
+            title,
+            style: const TextStyle(
+              fontSize: 17,
+              fontWeight: FontWeight.w500,
+              height: 1.2,
+            ),
+          ),
+          if (subtitle != null) ...[
+            const SizedBox(height: 4),
+            Text(subtitle!, style: Noc.meta),
+          ],
+          const SizedBox(height: 12),
+          for (final (label, onTap, color) in rows)
+            Ruled(
+              child: InkWell(
+                onTap: onTap,
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 13),
+                  child: Text(
+                    label,
+                    style: TextStyle(fontSize: 15, color: color ?? Noc.text),
+                  ),
+                ),
+              ),
+            ),
+        ],
+      ),
+    ),
+  );
+}
+
+/// The task's action sheet (tap a task row).
 Future<void> showTaskActions(
   BuildContext context,
   WidgetRef ref,
   Period period,
   Task task,
 ) async {
-  final data = ref.read(taskActionsProvider);
-  const kindLabels = {
-    PeriodKind.day: 'Move to daily list',
-    PeriodKind.week: 'Move to weekly list',
-    PeriodKind.month: 'Move to monthly list',
+  final actions = ref.read(taskActionsProvider);
+  final data = ref.read(appDataProvider);
+  final today = ref.read(todayProvider);
+  final now = ref.read(clockProvider)();
+  final messenger = ScaffoldMessenger.maybeOf(context);
+
+  String moveLabel(PeriodKind kind) {
+    final target = moveTarget(period, kind, now);
+    final isNow = target == Period.of(kind, today);
+    return switch (kind) {
+      PeriodKind.day =>
+        isNow ? 'Move to today' : 'Move to ${listLabel(target, today)}',
+      PeriodKind.week =>
+        isNow ? 'Move to this week' : 'Move to ${listLabel(target, today)}',
+      PeriodKind.month =>
+        isNow ? 'Move to this month' : 'Move to ${listLabel(target, today)}',
+    };
+  }
+
+  final nextWord = switch (period.kind) {
+    PeriodKind.day =>
+      period == Day(today) ? 'tomorrow' : dayLabel(period.next.start),
+    PeriodKind.week => 'next week',
+    PeriodKind.month => 'next month',
   };
-  final choice = await showModalBottomSheet<Object>(
+  final link = task.link;
+  final series =
+      task.recurring != null && data.recurring.containsKey(task.recurring);
+
+  final choice = await showModalBottomSheet<String>(
     context: context,
-    showDragHandle: true,
     isScrollControlled: true,
-    builder: (context) => SafeArea(
-      child: ListView(
-        shrinkWrap: true,
-        children: [
-          ListTile(
-            leading: const Icon(Icons.edit_outlined),
-            title: const Text('Edit'),
-            onTap: () => Navigator.pop(context, 'edit'),
-          ),
-          ListTile(
-            leading: const Icon(Icons.redo),
-            title: Text(switch (period.kind) {
-              PeriodKind.day => 'Postpone to ${dayLabel(period.next.start)}',
-              PeriodKind.week => 'Postpone to next week',
-              PeriodKind.month => 'Postpone to next month',
-            }),
-            onTap: () => Navigator.pop(context, 'postpone'),
-          ),
-          ListTile(
-            leading: const Icon(Icons.link),
-            title: Text(
-              task.link == null ? 'Link to goal or habit' : 'Change link',
+    builder: (context) => _SheetList(
+      title: task.title,
+      subtitle: 'In ${listLabel(period, today)}',
+      rows: [
+        ('Edit', () => Navigator.pop(context, 'edit'), null),
+        (
+          'Postpone to $nextWord',
+          () => Navigator.pop(context, 'postpone'),
+          null,
+        ),
+        for (final kind in PeriodKind.values)
+          if (kind != period.kind)
+            (
+              moveLabel(kind),
+              () => Navigator.pop(context, 'move:${kind.name}'),
+              null,
             ),
-            onTap: () => Navigator.pop(context, 'link'),
-          ),
-          for (final MapEntry(key: kind, value: label) in kindLabels.entries)
-            if (kind != period.kind)
-              ListTile(
-                leading: const Icon(Icons.drive_file_move_outlined),
-                title: Text(label),
-                onTap: () => Navigator.pop(context, kind),
-              ),
-          if (task.recurring != null &&
-              ref.read(appDataProvider).recurring.containsKey(task.recurring))
-            ListTile(
-              leading: const Icon(Icons.repeat_on_outlined),
-              title: const Text('Stop repeating'),
-              subtitle: const Text('This task stays; no new ones are created'),
-              onTap: () => Navigator.pop(context, 'stop'),
-            ),
-          ListTile(
-            leading: const Icon(Icons.delete_outline),
-            title: const Text('Delete'),
-            onTap: () => Navigator.pop(context, 'delete'),
-          ),
-        ],
-      ),
+        (
+          link == null
+              ? 'Link to goal or habit'
+              : 'Linked → ${targetName(data, link)}',
+          () => Navigator.pop(context, 'link'),
+          null,
+        ),
+        if (series)
+          ('Stop repeating', () => Navigator.pop(context, 'stop'), null),
+        ('Delete', () => Navigator.pop(context, 'delete'), Noc.accent300),
+      ],
     ),
   );
-  if (!context.mounted) return;
+  if (!context.mounted || choice == null) return;
+
+  void snack(String text, [VoidCallback? undo]) {
+    messenger?.hideCurrentSnackBar();
+    messenger?.showSnackBar(
+      SnackBar(
+        content: Text(text),
+        duration: const Duration(milliseconds: 4500),
+        action: undo == null
+            ? null
+            : SnackBarAction(label: 'Undo', onPressed: undo),
+      ),
+    );
+  }
+
   switch (choice) {
     case 'edit':
       final draft = await showTaskEditor(context, task: task);
       if (draft == null || !context.mounted) return;
       await runAction(
         context,
-        () => data.saveTask(
+        () => actions.saveTask(
           period,
           task.copyWith(
             title: draft.title,
@@ -376,21 +502,27 @@ Future<void> showTaskActions(
           ),
         ),
       );
+    case 'postpone':
+      await runAction(context, () => actions.postpone(period, task));
+      snack('Moved to $nextWord');
     case 'link':
-      final link = await showLinkPicker(context, ref, current: task.link);
-      if (link == null || !context.mounted) return;
+      final picked = await showLinkPicker(context, ref, current: link);
+      if (picked == null || !context.mounted) return;
       await runAction(
         context,
-        () => data.saveTask(period, task.copyWith(link: link.target)),
+        () => actions.saveTask(period, task.copyWith(link: picked.target)),
       );
-    case 'postpone':
-      await runAction(context, () => data.postpone(period, task));
     case 'stop':
-      await runAction(context, () => data.deleteRecurring(task.recurring!));
+      await runAction(context, () => actions.deleteRecurring(task.recurring!));
+      snack('Stopped repeating');
     case 'delete':
-      await runAction(context, () => data.deleteTask(period, task.id));
-    case final PeriodKind kind:
-      await runAction(context, () => data.moveTask(period, task, kind));
+      await runAction(context, () => actions.deleteTask(period, task.id));
+      snack('Task deleted', () => actions.saveTask(period, task));
+    default:
+      if (choice.startsWith('move:')) {
+        final kind = PeriodKind.values.byName(choice.substring(5));
+        await runAction(context, () => actions.moveTask(period, task, kind));
+      }
   }
 }
 
@@ -409,38 +541,32 @@ Future<({TargetRef? target})?> showLinkPicker(
     ..sort((a, b) => a.title.compareTo(b.title));
   return showModalBottomSheet<({TargetRef? target})>(
     context: context,
-    showDragHandle: true,
     isScrollControlled: true,
-    builder: (context) => SafeArea(
-      child: ListView(
-        shrinkWrap: true,
-        children: [
-          if (current != null)
-            ListTile(
-              leading: const Icon(Icons.link_off),
-              title: const Text('Remove link'),
-              onTap: () => Navigator.pop(context, (target: null)),
-            ),
-          if (goals.isEmpty && habits.isEmpty)
-            const ListTile(title: Text('No goals or habits yet')),
-          for (final g in goals)
-            ListTile(
-              leading: const Icon(Icons.flag_outlined),
-              title: Text(g.title),
-              selected: current == TargetRef.goal(g.id),
-              onTap: () =>
-                  Navigator.pop(context, (target: TargetRef.goal(g.id))),
-            ),
-          for (final h in habits)
-            ListTile(
-              leading: const Icon(Icons.repeat),
-              title: Text(h.title),
-              selected: current == TargetRef.habit(h.id),
-              onTap: () =>
-                  Navigator.pop(context, (target: TargetRef.habit(h.id))),
-            ),
-        ],
-      ),
+    builder: (context) => _SheetList(
+      title: 'Link to goal or habit',
+      subtitle: goals.isEmpty && habits.isEmpty
+          ? 'No goals or habits yet'
+          : null,
+      rows: [
+        if (current != null)
+          (
+            'Remove link',
+            () => Navigator.pop(context, (target: null)),
+            Noc.accent300,
+          ),
+        for (final g in goals)
+          (
+            '${g.title}${current == TargetRef.goal(g.id) ? '  ✓' : ''}',
+            () => Navigator.pop(context, (target: TargetRef.goal(g.id))),
+            null,
+          ),
+        for (final h in habits)
+          (
+            '${h.title}${current == TargetRef.habit(h.id) ? '  ✓' : ''}',
+            () => Navigator.pop(context, (target: TargetRef.habit(h.id))),
+            null,
+          ),
+      ],
     ),
   );
 }

@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../domain/goal.dart';
 import '../../domain/progress.dart';
 import '../../providers/data_providers.dart';
+import '../theme/widgets.dart';
 
 typedef GoalDraft = ({
   String title,
@@ -105,16 +106,17 @@ class _GoalEditorState extends ConsumerState<_GoalEditor> {
               decoration: const InputDecoration(labelText: 'Goal'),
             ),
             const SizedBox(height: 16),
-            SegmentedButton<GoalKind>(
-              segments: const [
-                ButtonSegment(
-                  value: GoalKind.measurable,
-                  label: Text('Measurable'),
-                ),
-                ButtonSegment(value: GoalKind.log, label: Text('Log')),
-              ],
-              selected: {_kind},
-              onSelectionChanged: (s) => setState(() => _kind = s.single),
+            Align(
+              alignment: Alignment.centerLeft,
+              child: NocSegmented<GoalKind>(
+                minWidth: 96,
+                options: const [
+                  (GoalKind.measurable, 'Measurable'),
+                  (GoalKind.log, 'Log'),
+                ],
+                selected: _kind,
+                onChanged: (k) => setState(() => _kind = k),
+              ),
             ),
             const SizedBox(height: 8),
             Text(
@@ -169,7 +171,7 @@ class _GoalEditorState extends ConsumerState<_GoalEditor> {
               ),
             ],
             const SizedBox(height: 16),
-            FilledButton(onPressed: _save, child: const Text('Save')),
+            NocButton('Save', big: true, onPressed: _save),
           ],
         ),
       ),

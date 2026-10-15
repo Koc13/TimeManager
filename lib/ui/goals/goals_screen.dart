@@ -4,17 +4,20 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../domain/app_data.dart';
 import '../../domain/goal.dart';
 import '../../domain/progress.dart';
+import '../../providers/actions/goal_actions.dart';
 import '../../providers/data_providers.dart';
 import '../feedback.dart';
 import '../format.dart';
-import '../todo/done_section.dart' show SectionHeader;
+import '../noc_app_bar.dart';
+import '../theme/nocturne.dart';
+import '../theme/widgets.dart';
 import 'goal_detail_screen.dart';
 import 'goal_editor.dart';
-import '../../providers/actions/goal_actions.dart';
+import '../theme/icons.dart';
 
-/// Active goals with progress bars (sub-goals indented), then On hold
-/// (collapsed), then Completed with dates: one scroll.
-class GoalsScreen extends ConsumerWidget {
+/// Active goals as an indented tree with progress bars, then On hold
+/// (collapsed) and Completed: one scroll.
+class GoalsScreen extends ConsumerStatefulWidget {
   const GoalsScreen({
     super.key,
     required this.scaffoldKey,
@@ -24,9 +27,16 @@ class GoalsScreen extends ConsumerWidget {
   final GlobalKey<ScaffoldState> scaffoldKey;
   final Widget drawer;
 
-  Future<void> _add(BuildContext context, WidgetRef ref) async {
+  @override
+  ConsumerState<GoalsScreen> createState() => _GoalsScreenState();
+}
+
+class _GoalsScreenState extends ConsumerState<GoalsScreen> {
+  bool _showOnHold = false;
+
+  Future<void> _add() async {
     final draft = await showGoalEditor(context);
-    if (draft == null || !context.mounted) return;
+    if (draft == null || !mounted) return;
     await runAction(
       context,
       () => ref
@@ -42,81 +52,177 @@ class GoalsScreen extends ConsumerWidget {
   }
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  Widget build(BuildContext context) {
     final data = ref.watch(appDataProvider);
-    final amounts = goalAmounts(data);
-    final progress = goalProgress(data, amounts);
-    final view = _GoalsView(data, amounts, progress);
-    final muted = TextStyle(color: Theme.of(context).colorScheme.outline);
-
+    final view = GoalsView(data);
     final active = view.rows(GoalStatus.active);
     final onHold = view.rows(GoalStatus.onHold);
-    final completed = view.rows(GoalStatus.completed);
+    final completed =
+        data.goals.values
+            .where((g) => g.status == GoalStatus.completed)
+            .toList()
+          ..sort(
+            (a, b) =>
+                (b.completed ?? b.created).compareTo(a.completed ?? a.created),
+          );
 
     return Scaffold(
-      key: scaffoldKey,
-      drawer: drawer,
-      appBar: AppBar(title: const Text('Goals')),
+      key: widget.scaffoldKey,
+      drawer: widget.drawer,
+      appBar: NocAppBar(scaffoldKey: widget.scaffoldKey, title: 'Goals'),
       body: ListView(
-        padding: const EdgeInsets.only(bottom: 96),
+        padding: const EdgeInsets.fromLTRB(Noc.gutter, 22, Noc.gutter, 40),
         children: [
+          Kicker('Active · ${active.where((r) => r.depth == 0).length}'),
+          const SizedBox(height: 6),
+          for (final row in active) GoalRow(row: row),
           if (active.isEmpty)
-            Padding(
-              padding: const EdgeInsets.all(32),
-              child: Center(child: Text('No active goals', style: muted)),
+            const Ruled(
+              child: Padding(
+                padding: EdgeInsets.symmetric(vertical: 22),
+                child: Text(
+                  'No active goals.',
+                  style: TextStyle(fontSize: 15, color: Noc.neutral400),
+                ),
+              ),
             ),
-          ...active,
-          if (onHold.isNotEmpty)
-            ExpansionTile(
-              title: Text('On hold (${onHold.length})'),
-              children: onHold,
+          Ruled(
+            child: InkWell(
+              onTap: _add,
+              child: const Padding(
+                padding: EdgeInsets.symmetric(vertical: 13),
+                child: Row(
+                  children: [
+                    Icon(Ph.plus, size: 22, color: Noc.accent300),
+                    SizedBox(width: 14),
+                    Text(
+                      'Add a goal',
+                      style: TextStyle(fontSize: 15, color: Noc.accent300),
+                    ),
+                  ],
+                ),
+              ),
             ),
+          ),
+          if (onHold.isNotEmpty) ...[
+            const SizedBox(height: 36),
+            InkWell(
+              onTap: () => setState(() => _showOnHold = !_showOnHold),
+              child: Padding(
+                padding: const EdgeInsets.symmetric(vertical: 4),
+                child: Row(
+                  children: [
+                    Kicker(
+                      'On hold · ${onHold.where((r) => r.depth == 0).length}',
+                      color: Noc.neutral400,
+                    ),
+                    const SizedBox(width: 6),
+                    Icon(
+                      _showOnHold ? Ph.caretUp : Ph.caretDown,
+                      size: 12,
+                      color: Noc.neutral400,
+                    ),
+                  ],
+                ),
+              ),
+            ),
+            if (_showOnHold) ...[
+              const SizedBox(height: 6),
+              for (final row in onHold) GoalRow(row: row),
+            ],
+          ],
           if (completed.isNotEmpty) ...[
-            const SectionHeader('Completed'),
-            ...completed,
+            const SizedBox(height: 36),
+            Kicker('Completed · ${completed.length}', color: Noc.neutral400),
+            const SizedBox(height: 6),
+            for (final goal in completed)
+              Ruled(
+                child: InkWell(
+                  onTap: () => openGoal(context, goal.id),
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 13),
+                    child: Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Padding(
+                          padding: EdgeInsets.only(top: 2),
+                          child: Icon(Ph.check, size: 14, color: Noc.accent),
+                        ),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                goal.title,
+                                style: const TextStyle(
+                                  fontSize: 14,
+                                  fontWeight: FontWeight.w500,
+                                ),
+                              ),
+                              Text(
+                                [
+                                  if (goal.completed != null)
+                                    'Completed ${goal.completed!.day} '
+                                        '${monthName(goal.completed!.month)}',
+                                  if (data.goals[goal.parent] case final p?)
+                                    'part of ${p.title}',
+                                ].join(' · '),
+                                style: const TextStyle(
+                                  fontSize: 11,
+                                  color: Noc.neutral400,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
           ],
         ],
-      ),
-      floatingActionButton: FloatingActionButton(
-        tooltip: 'Add goal',
-        onPressed: () => _add(context, ref),
-        child: const Icon(Icons.add),
       ),
     );
   }
 }
 
-/// Builds the rows of one status section as an indented tree. A goal sits
-/// under its parent when both are in the same section; otherwise it is a
-/// root of its section (e.g. an active sub-goal of an on-hold parent).
-class _GoalsView {
-  _GoalsView(this.data, this.amounts, this.progress)
-    : children = childrenByParent(data.goals.values);
+void openGoal(BuildContext context, String id) => Navigator.of(
+  context,
+).push(MaterialPageRoute<void>(builder: (_) => GoalDetailScreen(goalId: id)));
+
+/// One row of the goal tree, precomputed.
+typedef GoalRowData = ({Goal goal, int depth, double? progress, String amount});
+
+/// Builds a status section's rows as an indented tree. A goal sits under
+/// its parent when both are in the same section; otherwise it is a root of
+/// its section (e.g. an active sub-goal of an on-hold parent).
+class GoalsView {
+  GoalsView(this.data)
+    : children = childrenByParent(data.goals.values),
+      amounts = goalAmounts(data) {
+    progress = goalProgress(data, amounts);
+  }
 
   final AppData data;
-  final Map<String, num> amounts;
-  final Map<String, double?> progress;
   final Map<String?, List<Goal>> children;
+  final Map<String, num> amounts;
+  late final Map<String, double?> progress;
 
-  List<Widget> rows(GoalStatus status) {
+  List<GoalRowData> rows(GoalStatus status) {
     final inSection = {
       for (final g in data.goals.values)
         if (g.status == status) g.id,
     };
-    final rows = <Widget>[];
+    final rows = <GoalRowData>[];
     void add(Goal goal, int depth) {
-      rows.add(
-        GoalRow(
-          goal: goal,
-          depth: depth,
-          progress: progress[goal.id],
-          amount: amounts[goal.id] ?? 0,
-          childCount: children[goal.id]?.length ?? 0,
-          logCount: goal.kind == GoalKind.log
-              ? logsOf(data, goal.id).length
-              : 0,
-        ),
-      );
+      rows.add((
+        goal: goal,
+        depth: depth,
+        progress: progress[goal.id],
+        amount: amountText(goal),
+      ));
       for (final child in children[goal.id] ?? const <Goal>[]) {
         if (inSection.contains(child.id)) add(child, depth + 1);
       }
@@ -125,81 +231,86 @@ class _GoalsView {
     final sorted = data.goals.values.toList()
       ..sort((a, b) => a.created.compareTo(b.created));
     for (final goal in sorted) {
-      final parentHere =
-          inSection.contains(goal.parent) &&
-          children[goal.parent]!.any((c) => c.id == goal.id);
-      if (goal.status == status && !parentHere) add(goal, 0);
+      if (goal.status == status && !inSection.contains(goal.parent)) {
+        add(goal, 0);
+      }
     }
     return rows;
+  }
+
+  /// "38,400 of 60,000 words", "21 h 30 min of 30 h",
+  /// "1 of 2 sub-goals complete", "Log goal · 4 entries".
+  String amountText(Goal goal) {
+    final kids = children[goal.id] ?? const <Goal>[];
+    if (kids.isNotEmpty) {
+      final done = kids.where((k) => k.status == GoalStatus.completed).length;
+      return '$done of ${kids.length} sub-goal${kids.length == 1 ? '' : 's'} complete';
+    }
+    if (goal.kind == GoalKind.log) {
+      final n = logsOf(data, goal.id).length;
+      return n == 0 ? 'Log goal' : 'Log goal · $n entr${n == 1 ? 'y' : 'ies'}';
+    }
+    final amount = amounts[goal.id] ?? 0;
+    final target = goal.target;
+    if (target == null) return groupThousands(amount);
+    if (isMinutes(goal.unit)) {
+      return '${minutesLabel(amount.round())} of ${minutesLabel(target.round())}';
+    }
+    final unit = goal.unit == null ? '' : ' ${goal.unit}';
+    return '${groupThousands(amount)} of ${groupThousands(target)}$unit';
   }
 }
 
 class GoalRow extends StatelessWidget {
-  const GoalRow({
-    super.key,
-    required this.goal,
-    required this.depth,
-    required this.progress,
-    required this.amount,
-    required this.childCount,
-    required this.logCount,
-  });
+  const GoalRow({super.key, required this.row});
 
-  final Goal goal;
-  final int depth;
-  final double? progress;
-  final num amount;
-  final int childCount;
-  final int logCount;
+  final GoalRowData row;
 
   @override
   Widget build(BuildContext context) {
-    final p = progress;
-    return ListTile(
-      contentPadding: EdgeInsets.only(left: 16.0 + depth * 24, right: 16),
-      title: Text(goal.title),
-      subtitle: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          if (p != null) ...[
-            const SizedBox(height: 6),
-            LinearProgressIndicator(
-              value: p.clamp(0.0, 1.0),
-              borderRadius: BorderRadius.circular(4),
-            ),
-          ],
-          const SizedBox(height: 4),
-          Text(goalProgressLabel(goal, p, amount, childCount, logCount)),
-        ],
-      ),
-      onTap: () => Navigator.of(context).push(
-        MaterialPageRoute<void>(
-          builder: (_) => GoalDetailScreen(goalId: goal.id),
+    final p = row.progress;
+    return Ruled(
+      child: InkWell(
+        onTap: () => openGoal(context, row.goal.id),
+        child: Padding(
+          padding: EdgeInsets.fromLTRB(row.depth * 18.0, 16, 0, 16),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.baseline,
+                textBaseline: TextBaseline.alphabetic,
+                children: [
+                  Expanded(
+                    child: Text(
+                      row.goal.title,
+                      style: TextStyle(
+                        fontSize: row.depth == 0 ? 16 : 14,
+                        fontWeight: FontWeight.w500,
+                        height: 1.2,
+                      ),
+                    ),
+                  ),
+                  if (p != null)
+                    Text(
+                      '${(p * 100).round()}%',
+                      style: Noc.title.copyWith(
+                        color: Noc.accent300,
+                        fontFeatures: const [FontFeature.tabularFigures()],
+                      ),
+                    ),
+                ],
+              ),
+              if (p != null) ...[
+                const SizedBox(height: 10),
+                NocProgress(value: p, thick: true),
+              ],
+              const SizedBox(height: 7),
+              Text(row.amount, style: Noc.meta),
+            ],
+          ),
         ),
       ),
     );
   }
-}
-
-/// "45 / 100 problems · 45%", "3 sub-goals · 60%", "4 log entries",
-/// "Completed Wed 14 Oct".
-String goalProgressLabel(
-  Goal goal,
-  double? progress,
-  num amount,
-  int childCount,
-  int logCount,
-) {
-  final parts = <String>[
-    if (goal.status == GoalStatus.completed && goal.completed != null)
-      'Completed ${dayLabel(goal.completed!)} ${goal.completed!.year}',
-    if (childCount > 0)
-      '$childCount sub-goal${childCount == 1 ? '' : 's'}'
-    else if (goal.kind == GoalKind.measurable && goal.target != null)
-      '${amountLabel(amount, null)} / ${amountLabel(goal.target!, goal.unit)}'
-    else if (goal.kind == GoalKind.log)
-      '$logCount log entr${logCount == 1 ? 'y' : 'ies'}',
-    if (progress != null) '${(progress * 100).round()}%',
-  ];
-  return parts.join(' · ');
 }

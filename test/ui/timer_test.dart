@@ -1,17 +1,16 @@
 import 'dart:async';
 import 'dart:io';
 
+import 'package:flutter/material.dart';
+import 'package:flutter_test/flutter_test.dart';
 import 'package:time_manager/domain/target_ref.dart';
 import 'package:time_manager/domain/timer_state.dart';
 import 'package:time_manager/notifications/notification_service.dart';
-import 'package:time_manager/providers/timer_controller.dart';
-
 import 'package:time_manager/providers/data_providers.dart';
+import 'package:time_manager/providers/timer_controller.dart';
 import 'package:time_manager/storage/data_store.dart';
-import 'package:time_manager/ui/app_shell.dart';
-import 'package:flutter/material.dart';
-import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:flutter_test/flutter_test.dart';
+
+import 'helpers.dart';
 
 void main() {
   late Directory dir;
@@ -25,56 +24,45 @@ void main() {
   });
   tearDown(() => dir.delete(recursive: true));
 
-  Future<void> settleIo(WidgetTester tester) async {
-    for (var i = 0; i < 30; i++) {
-      await tester.runAsync(
-        () => Future<void>.delayed(const Duration(milliseconds: 10)),
-      );
-      await tester.pump();
-    }
-  }
-
   testWidgets('pick a custom topic, run, stop early and keep it', (
     tester,
   ) async {
-    await tester.pumpWidget(
-      ProviderScope(
-        overrides: [
-          dataStoreProvider.overrideWithValue(store),
-          clockProvider.overrideWithValue(() => now),
-        ],
-        child: const MaterialApp(home: AppShell()),
-      ),
+    await pumpApp(
+      tester,
+      store,
+      now,
+      clock: () => now,
     );
-    await settleIo(tester);
-    await tester.tap(find.byTooltip('Open navigation menu'));
-    await tester.pumpAndSettle();
-    await tester.tap(find.text('Timer'));
-    await tester.pumpAndSettle();
-    expect(find.text('No sessions yet'), findsOneWidget);
+    await openSection(tester, 'Timer');
+    expect(find.text('No sessions yet.'), findsOneWidget);
+    expect(find.text('READY'), findsOneWidget);
 
+    await tester.tap(find.text('Choose a goal or habit'));
+    await tester.pumpAndSettle();
     await tester.enterText(find.byType(TextField), 'Tax forms');
     await tester.pump();
-    await tester.tap(find.text('Custom session: "Tax forms"'));
+    await tester.tap(find.text('Start “Tax forms”'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('50 + 10'));
     await tester.pump();
-    await tester.tap(find.text('50 min'));
-    await tester.pump();
-    await tester.tap(find.text('Start'));
-    await settleIo(tester);
     expect(find.text('50:00'), findsOneWidget);
+    await tester.tap(find.text('Start block'));
+    await settleIo(tester, settle: false);
+    expect(find.text('WORKING'), findsOneWidget);
 
     now = now.add(const Duration(minutes: 7, seconds: 5));
     await tester.pump(const Duration(seconds: 1));
     expect(find.text('42:55'), findsOneWidget);
 
     await tester.tap(find.text('Stop'));
-    await settleIo(tester);
-    expect(find.text('Keep this 7 min session?'), findsOneWidget);
-    await tester.tap(find.text('Keep'));
-    await settleIo(tester);
+    await settleIo(tester, settle: false);
+    await tester.pump(const Duration(milliseconds: 300));
+    expect(find.text('Stop this block?'), findsOneWidget);
+    await tester.tap(find.text('Keep 7 min'));
+    await settleIo(tester, settle: false);
+    await tester.pump(const Duration(milliseconds: 300));
 
-    expect(find.text('Tax forms'), findsOneWidget); // today's totals
-    expect(find.text('7 min · 1 session'), findsOneWidget);
+    expect(find.text('7 min'), findsWidgets); // today's list and total
     expect(
       File('${dir.path}/periods/2026/10/2026-10-14.md').readAsStringSync(),
       contains('target: {type: custom, name: Tax forms}'),
@@ -84,48 +72,41 @@ void main() {
   testWidgets('a cold start with a running timer opens the Timer', (
     tester,
   ) async {
-    await tester.pumpWidget(
-      ProviderScope(
-        overrides: [
-          dataStoreProvider.overrideWithValue(store),
-          clockProvider.overrideWithValue(() => now),
-          restoredTimerProvider.overrideWithValue(
-            TimerState.start(
-              target: const TargetRef.custom('Reading'),
-              workMin: 25,
-              breakMin: 5,
-              sessionId: 's_1',
-              now: now.subtract(const Duration(minutes: 5)),
-            ),
+    await pumpApp(
+      tester,
+      store,
+      now,
+      overrides: [
+        restoredTimerProvider.overrideWithValue(
+          TimerState.start(
+            target: const TargetRef.custom('Reading'),
+            workMin: 25,
+            breakMin: 5,
+            sessionId: 's_1',
+            now: now.subtract(const Duration(minutes: 5)),
           ),
-        ],
-        child: const MaterialApp(home: AppShell()),
-      ),
+        ),
+      ],
     );
-    await settleIo(tester);
     expect(find.text('20:00'), findsOneWidget);
-    expect(find.widgetWithText(AppBar, 'Timer'), findsOneWidget);
+    expect(find.text('WORKING'), findsOneWidget);
+    expect(find.text('Reading'), findsOneWidget); // locked "Working on"
   });
 
-  testWidgets('tapping the timer notification switches to the Timer', (
-    tester,
-  ) async {
+  testWidgets('notification taps switch section and list', (tester) async {
     final taps = StreamController<String>.broadcast();
-    await tester.pumpWidget(
-      ProviderScope(
-        overrides: [
-          dataStoreProvider.overrideWithValue(store),
-          clockProvider.overrideWithValue(() => now),
-          notificationsProvider.overrideWithValue(_TapNotifications(taps)),
-        ],
-        child: const MaterialApp(home: AppShell()),
-      ),
+    await pumpApp(
+      tester,
+      store,
+      now,
+      overrides: [
+        notificationsProvider.overrideWithValue(_TapNotifications(taps)),
+      ],
     );
-    await settleIo(tester);
-    expect(find.text('Wed 14 Oct'), findsOneWidget);
+    expect(find.text('Wednesday'), findsOneWidget);
     taps.add(timerPayload);
     await tester.pumpAndSettle();
-    expect(find.widgetWithText(AppBar, 'Timer'), findsOneWidget);
+    expect(find.text('READY'), findsOneWidget);
 
     // A weekly review reminder opens the weekly list.
     taps.add('open:week');

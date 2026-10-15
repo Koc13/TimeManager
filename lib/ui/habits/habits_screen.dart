@@ -8,13 +8,15 @@ import '../../domain/progress.dart';
 import '../../providers/data_providers.dart';
 import '../feedback.dart';
 import '../format.dart';
+import '../noc_app_bar.dart';
+import '../theme/nocturne.dart';
+import '../theme/widgets.dart';
+
 import '../goals/goal_feedback.dart';
 import 'habit_editor.dart';
 import '../../providers/actions/activity_actions.dart';
 import '../../providers/actions/habit_actions.dart';
-
-const _cell = 40.0;
-const _weekdayLetters = ['M', 'T', 'W', 'T', 'F', 'S', 'S'];
+import '../theme/icons.dart';
 
 /// The habit grid: one row per habit, one column per day of the shown
 /// week. Tap a cell to toggle (yes/no) or enter a value (measurable);
@@ -95,31 +97,48 @@ class _HabitsScreenState extends ConsumerState<HabitsScreen> {
     return showDialog<({num? value})>(
       context: context,
       builder: (context) => AlertDialog(
-        title: Text('${habit.title} · ${dayLabel(day.date)}'),
-        content: TextField(
-          controller: text,
-          autofocus: true,
-          keyboardType: const TextInputType.numberWithOptions(decimal: true),
-          inputFormatters: [
-            FilteringTextInputFormatter.allow(RegExp(r'[0-9.]')),
+        title: Text(habit.title),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              '${weekdayLong(day.date.weekday)}. Leave empty or 0 to clear the day.',
+            ),
+            const SizedBox(height: 12),
+            Text(
+              _capitalised(habit.unit ?? 'Amount'),
+              style: const TextStyle(fontSize: 12, color: Color(0xB3E9E9ED)),
+            ),
+            const SizedBox(height: 5),
+            TextField(
+              controller: text,
+              autofocus: true,
+              style: const TextStyle(
+                fontSize: 16,
+                fontFeatures: [FontFeature.tabularFigures()],
+              ),
+              keyboardType: const TextInputType.numberWithOptions(
+                decimal: true,
+              ),
+              inputFormatters: [
+                FilteringTextInputFormatter.allow(RegExp(r'[0-9.]')),
+              ],
+              decoration: InputDecoration(
+                helperText: fromTimer > 0
+                    ? '+ ${amountLabel(fromTimer, habit.unit)} from the timer'
+                    : null,
+              ),
+              onSubmitted: (_) => submit(context),
+            ),
           ],
-          decoration: InputDecoration(
-            suffixText: habit.unit,
-            helperText: fromTimer > 0
-                ? '+ ${amountLabel(fromTimer, habit.unit)} from the timer'
-                : null,
-          ),
-          onSubmitted: (_) => submit(context),
         ),
         actions: [
-          TextButton(
+          NocButton.secondary(
+            'Cancel',
             onPressed: () => Navigator.pop(context),
-            child: const Text('Cancel'),
           ),
-          FilledButton(
-            onPressed: () => submit(context),
-            child: const Text('Save'),
-          ),
+          NocButton('Save', onPressed: () => submit(context)),
         ],
       ),
     );
@@ -129,23 +148,43 @@ class _HabitsScreenState extends ConsumerState<HabitsScreen> {
     final data = ref.read(habitActionsProvider);
     final choice = await showModalBottomSheet<String>(
       context: context,
-      showDragHandle: true,
       builder: (context) => SafeArea(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            ListTile(
-              leading: const Icon(Icons.edit_outlined),
-              title: const Text('Edit'),
-              onTap: () => Navigator.pop(context, 'edit'),
-            ),
-            ListTile(
-              leading: const Icon(Icons.delete_outline),
-              title: const Text('Delete'),
-              subtitle: const Text('Past entries stay in your history'),
-              onTap: () => Navigator.pop(context, 'delete'),
-            ),
-          ],
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(22, 0, 22, 28),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Text(
+                habit.title,
+                style: const TextStyle(
+                  fontSize: 17,
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+              const SizedBox(height: 12),
+              for (final (label, value, color) in const [
+                ('Edit', 'edit', Noc.text),
+                (
+                  'Delete (past entries stay in your history)',
+                  'delete',
+                  Noc.accent300,
+                ),
+              ])
+                Ruled(
+                  child: InkWell(
+                    onTap: () => Navigator.pop(context, value),
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 13),
+                      child: Text(
+                        label,
+                        style: TextStyle(fontSize: 15, color: color),
+                      ),
+                    ),
+                  ),
+                ),
+            ],
+          ),
         ),
       ),
     );
@@ -176,167 +215,287 @@ class _HabitsScreenState extends ConsumerState<HabitsScreen> {
     final today = ref.watch(todayProvider);
     final habits = data.habits.values.toList()
       ..sort((a, b) => a.created.compareTo(b.created));
-    final scheme = Theme.of(context).colorScheme;
     final days = _days;
+    final thisWeek = Week.containing(today);
 
     return Scaffold(
       key: widget.scaffoldKey,
       drawer: widget.drawer,
-      appBar: AppBar(
-        title: Text(
-          'Week ${_week.week} · ${dayLabel(_week.start).substring(4)}',
-        ),
-        actions: [
-          IconButton(
-            tooltip: 'Previous week',
-            icon: const Icon(Icons.chevron_left),
-            onPressed: () => setState(() => _week = _week.previous),
-          ),
-          IconButton(
-            tooltip: 'Next week',
-            icon: const Icon(Icons.chevron_right),
-            onPressed: () => setState(() => _week = _week.next),
-          ),
-        ],
-      ),
+      appBar: NocAppBar(scaffoldKey: widget.scaffoldKey, title: 'Habits'),
       body: ListView(
-        padding: const EdgeInsets.fromLTRB(16, 8, 8, 96),
+        padding: const EdgeInsets.fromLTRB(18, 22, 18, 40),
         children: [
-          Row(
-            children: [
-              const Expanded(child: SizedBox()),
-              for (final (i, day) in days.indexed)
-                SizedBox(
-                  width: _cell,
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 6),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.end,
+              children: [
+                Expanded(
                   child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text(_weekdayLetters[i]),
+                      Kicker(periodKicker(_week, today)),
+                      const SizedBox(height: 4),
+                      Text('Week ${_week.week}', style: Noc.displaySmall),
+                      const SizedBox(height: 4),
                       Text(
-                        '${day.date.day}',
-                        style: TextStyle(
-                          fontSize: 11,
-                          fontWeight: day.date == today
-                              ? FontWeight.bold
-                              : null,
-                          color: day.date == today
-                              ? scheme.primary
-                              : scheme.outline,
-                        ),
+                        periodSub(_week),
+                        style: Noc.meta.copyWith(fontSize: 13),
                       ),
                     ],
                   ),
                 ),
-            ],
+                IconButton(
+                  tooltip: 'Previous week',
+                  icon: const Icon(Ph.caretLeft, size: 20),
+                  onPressed: () => setState(() => _week = _week.previous),
+                ),
+                IconButton(
+                  tooltip: 'Next week',
+                  icon: const Icon(Ph.caretRight, size: 20),
+                  onPressed: () => setState(() => _week = _week.next),
+                ),
+              ],
+            ),
           ),
-          const SizedBox(height: 8),
-          if (habits.isEmpty)
+          if (_week != thisWeek)
             Padding(
-              padding: const EdgeInsets.all(32),
-              child: Center(
-                child: Text(
-                  'No habits yet',
-                  style: TextStyle(color: scheme.outline),
+              padding: const EdgeInsets.only(left: 6, top: 6),
+              child: Align(
+                alignment: Alignment.centerLeft,
+                child: NocButton.ghost(
+                  '← Back to this week',
+                  small: true,
+                  onPressed: () => setState(() => _week = thisWeek),
                 ),
               ),
             ),
-          for (final habit in habits)
-            Row(
-              children: [
-                Expanded(
-                  child: InkWell(
-                    onLongPress: () => _habitMenu(habit),
-                    child: Padding(
-                      padding: const EdgeInsets.symmetric(vertical: 12),
-                      child: Text(
-                        habit.title,
-                        maxLines: 2,
-                        overflow: TextOverflow.ellipsis,
+          const SizedBox(height: 22),
+          Ruled(
+            child: Padding(
+              padding: const EdgeInsets.only(bottom: 8),
+              child: Row(
+                children: [
+                  for (final day in days)
+                    Expanded(
+                      child: Opacity(
+                        opacity: day.date.isAfter(today) ? 0.4 : 1,
+                        child: Column(
+                          children: [
+                            Text(
+                              weekdayShort(day.date.weekday)
+                                  .substring(0, 2)
+                                  .toUpperCase(),
+                              style: const TextStyle(
+                                fontSize: 10,
+                                letterSpacing: 0.8,
+                                color: Noc.neutral400,
+                              ),
+                            ),
+                            const SizedBox(height: 2),
+                            Container(
+                              width: 28,
+                              height: 28,
+                              alignment: Alignment.center,
+                              decoration: BoxDecoration(
+                                borderRadius: BorderRadius.circular(Noc.rSm),
+                                border: Border.all(
+                                  color: day.date == today
+                                      ? Noc.accent
+                                      : Colors.transparent,
+                                ),
+                              ),
+                              child: Text(
+                                '${day.date.day}',
+                                style: const TextStyle(
+                                  fontSize: 13,
+                                  fontWeight: FontWeight.w500,
+                                  fontFeatures: [FontFeature.tabularFigures()],
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
                       ),
                     ),
+                ],
+              ),
+            ),
+          ),
+          if (habits.isEmpty)
+            const Padding(
+              padding: EdgeInsets.fromLTRB(6, 22, 6, 0),
+              child: Text(
+                'No habits yet.',
+                style: TextStyle(fontSize: 15, color: Noc.neutral400),
+              ),
+            ),
+          for (final habit in habits)
+            _HabitRow(
+              habit: habit,
+              values: [
+                for (final day in days) habitDayValue(habit, data.period(day)),
+              ],
+              days: days,
+              today: today,
+              onTap: _tapCell,
+              onMenu: () => _habitMenu(habit),
+            ),
+          const SizedBox(height: 16),
+          const Padding(
+            padding: EdgeInsets.symmetric(horizontal: 6),
+            child: _Legend(),
+          ),
+          const Padding(
+            padding: EdgeInsets.fromLTRB(6, 10, 6, 0),
+            child: Text(
+              'Tap a day to check it off. Numbers open a dialog. Days after '
+              'today stay closed. Long-press a habit to edit it.',
+              style: Noc.meta,
+            ),
+          ),
+          const SizedBox(height: 12),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 6),
+            child: Ruled(
+              top: true,
+              child: InkWell(
+                onTap: _add,
+                child: const Padding(
+                  padding: EdgeInsets.symmetric(vertical: 13),
+                  child: Row(
+                    children: [
+                      Icon(Ph.plus, size: 22, color: Noc.accent300),
+                      SizedBox(width: 14),
+                      Text(
+                        'Add a habit',
+                        style: TextStyle(fontSize: 15, color: Noc.accent300),
+                      ),
+                    ],
                   ),
                 ),
-                for (final day in days)
-                  _Cell(
-                    habit: habit,
-                    value: habitDayValue(habit, data.period(day)),
-                    isToday: day.date == today,
-                    // Logging the future makes no sense; the past is fine.
-                    onTap: day.date.isAfter(today)
-                        ? null
-                        : () => _tapCell(habit, day),
-                  ),
-              ],
+              ),
             ),
+          ),
         ],
-      ),
-      floatingActionButton: FloatingActionButton(
-        tooltip: 'Add habit',
-        onPressed: _add,
-        child: const Icon(Icons.add),
       ),
     );
   }
 }
 
-class _Cell extends StatelessWidget {
-  const _Cell({
+String _capitalised(String s) =>
+    s.isEmpty ? s : s[0].toUpperCase() + s.substring(1);
+
+/// One habit: name, the week's total, then seven heat cells.
+class _HabitRow extends StatelessWidget {
+  const _HabitRow({
     required this.habit,
-    required this.value,
-    required this.isToday,
+    required this.values,
+    required this.days,
+    required this.today,
     required this.onTap,
+    required this.onMenu,
   });
 
   final Habit habit;
-  final num value;
-  final bool isToday;
-  final VoidCallback? onTap;
+  final List<num> values;
+  final List<Day> days;
+  final DateTime today;
+  final void Function(Habit, Day) onTap;
+  final VoidCallback onMenu;
 
   @override
   Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
-    final filled = value > 0;
-    return SizedBox(
-      width: _cell,
-      height: _cell,
+    final measurable = habit.kind == HabitKind.measurable;
+    // No per-day target is stored, so the week's best day sets the scale
+    // (as the design suggests); derived, never saved.
+    final scale = values.fold<num>(0, (a, b) => b > a ? b : a);
+    final total = measurable
+        ? amountLabel(values.fold<num>(0, (a, b) => a + b), habit.unit)
+        : '${values.where((v) => v > 0).length} of 7';
+
+    return Ruled(
       child: Padding(
-        padding: const EdgeInsets.all(3),
-        child: Material(
-          color: filled
-              ? scheme.primaryContainer
-              : scheme.surfaceContainerHighest.withValues(
-                  alpha: onTap == null ? 0.3 : 1,
-                ),
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(8),
-            side: isToday
-                ? BorderSide(color: scheme.primary, width: 1.5)
-                : BorderSide.none,
-          ),
-          child: InkWell(
-            borderRadius: BorderRadius.circular(8),
-            onTap: onTap,
-            child: Center(
-              child: !filled
-                  ? null
-                  : habit.kind == HabitKind.yesNo
-                  ? Icon(
-                      Icons.check,
-                      size: 18,
-                      color: scheme.onPrimaryContainer,
-                    )
-                  : FittedBox(
-                      child: Padding(
-                        padding: const EdgeInsets.all(2),
-                        child: Text(
-                          amountLabel(value, null),
-                          style: TextStyle(color: scheme.onPrimaryContainer),
+        padding: const EdgeInsets.fromLTRB(0, 14, 0, 12),
+        child: Column(
+          children: [
+            InkWell(
+              onLongPress: onMenu,
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(6, 0, 6, 8),
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.baseline,
+                  textBaseline: TextBaseline.alphabetic,
+                  children: [
+                    Expanded(
+                      child: Text(
+                        habit.title,
+                        style: const TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w500,
                         ),
                       ),
                     ),
+                    Text(total, style: Noc.meta),
+                  ],
+                ),
+              ),
             ),
-          ),
+            Row(
+              children: [
+                for (final (i, day) in days.indexed)
+                  Expanded(
+                    child: Center(
+                      child: HeatCell(
+                        semanticLabel:
+                            '${habit.title} ${weekdayShort(day.date.weekday)}',
+                        level: measurable
+                            ? levelFor(values[i], scale)
+                            : (values[i] > 0 ? 4 : 0),
+                        check: !measurable && values[i] > 0,
+                        label: measurable && values[i] > 0
+                            ? amountLabel(values[i], null)
+                            : null,
+                        isToday: day.date == today,
+                        enabled: !day.date.isAfter(today),
+                        onTap: () => onTap(habit, day),
+                      ),
+                    ),
+                  ),
+              ],
+            ),
+          ],
         ),
       ),
+    );
+  }
+}
+
+class _Legend extends StatelessWidget {
+  const _Legend();
+
+  @override
+  Widget build(BuildContext context) {
+    const style = TextStyle(fontSize: 11, color: Noc.neutral400);
+    return Row(
+      children: [
+        const Text('Less', style: style),
+        const SizedBox(width: 8),
+        for (var level = 0; level <= 4; level++) ...[
+          Container(
+            width: 12,
+            height: 12,
+            decoration: BoxDecoration(
+              color: Noc.heat[level],
+              borderRadius: BorderRadius.circular(Noc.rSm),
+              border: level == 0 ? Border.all(color: Noc.neutral800) : null,
+            ),
+          ),
+          const SizedBox(width: 4),
+        ],
+        const SizedBox(width: 4),
+        const Text('More', style: style),
+      ],
     );
   }
 }

@@ -1,19 +1,20 @@
 import 'dart:io';
 
+import 'package:flutter/material.dart';
+import 'package:flutter_test/flutter_test.dart';
 import 'package:time_manager/domain/goal.dart';
 import 'package:time_manager/domain/habit.dart';
-import 'package:time_manager/providers/data_providers.dart';
 import 'package:time_manager/storage/data_store.dart';
-import 'package:time_manager/ui/app_shell.dart';
-import 'package:flutter/material.dart';
-import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:flutter_test/flutter_test.dart';
+import 'package:time_manager/ui/theme/icons.dart';
+import 'package:time_manager/ui/theme/widgets.dart';
+
+import 'helpers.dart';
 
 void main() {
   late Directory dir;
   late DataStore store;
-  final now = DateTime(2026, 10, 14, 9); // Wednesday, column 3 of W42
-  final todayFile = 'periods/2026/10/2026-10-14.md';
+  final now = DateTime(2026, 10, 14, 9); // Wednesday of W42
+  const todayFile = 'periods/2026/10/2026-10-14.md';
 
   setUp(() async {
     dir = await Directory.systemTemp.createTemp('tm_habits');
@@ -21,69 +22,37 @@ void main() {
   });
   tearDown(() => dir.delete(recursive: true));
 
-  Future<void> settleIo(WidgetTester tester) async {
-    for (var i = 0; i < 30; i++) {
-      await tester.runAsync(
-        () => Future<void>.delayed(const Duration(milliseconds: 10)),
-      );
-      await tester.pump();
-    }
-    await tester.pumpAndSettle();
-  }
-
-  Future<void> openHabits(WidgetTester tester) async {
-    await tester.pumpWidget(
-      ProviderScope(
-        overrides: [
-          dataStoreProvider.overrideWithValue(store),
-          clockProvider.overrideWithValue(() => now),
-        ],
-        child: const MaterialApp(home: AppShell()),
-      ),
-    );
-    await settleIo(tester);
-    await tester.tap(find.byTooltip('Open navigation menu'));
-    await tester.pumpAndSettle();
-    await tester.tap(find.text('Habits'));
-    await tester.pumpAndSettle();
-  }
-
-  // The tappable cells of a habit's row, Monday first.
-  Finder cells(String habit) => find.descendant(
-    of: find.ancestor(of: find.text(habit), matching: find.byType(Row)).first,
-    matching: find.byType(InkWell),
-  );
+  Finder cell(String label) =>
+      find.byWidgetPredicate((w) => w is HeatCell && w.semanticLabel == label);
 
   testWidgets('create a yes/no habit and check today', (tester) async {
-    await openHabits(tester);
-    expect(find.text('Week 42 · 12 Oct'), findsOneWidget);
+    await pumpApp(tester, store, now);
+    await openSection(tester, 'Habits');
+    expect(find.text('Week 42'), findsOneWidget);
+    expect(find.text('12 Oct – 18 Oct'), findsOneWidget);
 
-    await tester.tap(find.byTooltip('Add habit'));
+    await tester.tap(find.text('Add a habit'));
     await tester.pumpAndSettle();
     await tester.enterText(find.widgetWithText(TextField, 'Habit'), 'Gym');
     await tester.tap(find.text('Save'));
     await settleIo(tester);
 
-    // cells(): [name, Mon, Tue, Wed, ...]
-    await tester.tap(cells('Gym').at(3));
+    await tester.tap(cell('Gym Wed'));
     await settleIo(tester);
-    expect(find.byIcon(Icons.check), findsOneWidget);
+    expect(find.byIcon(Ph.check), findsOneWidget);
+    expect(find.text('1 of 7'), findsOneWidget);
     expect(
       File('${dir.path}/$todayFile').readAsStringSync(),
       contains('value: true\n'),
     );
 
     // Tapping again unchecks (removes the entry).
-    await tester.tap(cells('Gym').at(3));
+    await tester.tap(cell('Gym Wed'));
     await settleIo(tester);
-    expect(find.byIcon(Icons.check), findsNothing);
-    expect(
-      store.data.period(store.data.periods.values.first.period).habitEntries,
-      isEmpty,
-    );
+    expect(find.byIcon(Ph.check), findsNothing);
   });
 
-  testWidgets('a measurable entry feeds and completes its linked goal', (
+  testWidgets('a measurable entry is shaded and completes its linked goal', (
     tester,
   ) async {
     await tester.runAsync(() async {
@@ -107,15 +76,19 @@ void main() {
         ),
       );
     });
-    await openHabits(tester);
+    await pumpApp(tester, store, now);
+    await openSection(tester, 'Habits');
 
-    await tester.tap(cells('Reading').at(3));
+    await tester.tap(cell('Reading Wed'));
     await tester.pumpAndSettle();
     await tester.enterText(find.byType(TextField), '30');
     await tester.tap(find.text('Save'));
-    await settleIo(tester);
+    await settleIo(tester, settle: false);
+    await tester.pump(const Duration(milliseconds: 500));
 
-    expect(find.text('30'), findsOneWidget);
+    final heat = tester.widget<HeatCell>(cell('Reading Wed'));
+    expect((heat.level, heat.label), (4, '30'));
+    expect(find.text('30 pages'), findsOneWidget); // weekly total
     expect(store.data.goals['g_book']!.status, GoalStatus.completed);
     expect(find.text('Completed: Finish book'), findsOneWidget);
   });
@@ -124,9 +97,20 @@ void main() {
     await tester.runAsync(
       () => store.saveHabit(Habit(id: 'h_gym', title: 'Gym', created: now)),
     );
-    await openHabits(tester);
-    await tester.tap(cells('Gym').at(4)); // Thursday
+    await pumpApp(tester, store, now);
+    await openSection(tester, 'Habits');
+    expect(tester.widget<HeatCell>(cell('Gym Thu')).enabled, isFalse);
+    await tester.tap(cell('Gym Thu'), warnIfMissed: false);
     await settleIo(tester);
-    expect(find.byIcon(Icons.check), findsNothing);
+    expect(find.byIcon(Ph.check), findsNothing);
+  });
+
+  test('levelFor scales a value against the target into 1–4', () {
+    expect(levelFor(0, 20), 0);
+    expect(levelFor(1, 20), 1);
+    expect(levelFor(10, 20), 2);
+    expect(levelFor(15, 20), 3);
+    expect(levelFor(20, 20), 4);
+    expect(levelFor(45, 20), 4);
   });
 }

@@ -1,0 +1,36 @@
+# Local Flatpak build from an already-built Flutter bundle:
+#   flutter build linux --release
+#   flatpak-builder --user --install --force-clean build/flatpak linux/packaging/io.github.koc13.timemanager.yml
+# Flathub needs a build-from-source manifest instead (see README "Publishing").
+app-id: io.github.koc13.timemanager
+runtime: org.gnome.Platform
+runtime-version: '50'
+sdk: org.gnome.Sdk
+command: time_manager
+finish-args:
+  - --share=ipc
+  - --socket=fallback-x11
+  - --socket=wayland
+  - --device=dri
+  # The data folder (shared by Syncthing) must live under ~/Documents.
+  - --filesystem=xdg-documents
+modules:
+  - name: time_manager
+    buildsystem: simple
+    build-commands:
+      - mkdir -p /app/lib/time_manager /app/bin
+      - cp -r bundle/* /app/lib/time_manager/
+      - ln -s /app/lib/time_manager/time_manager /app/bin/time_manager
+      - install -Dm644 io.github.koc13.timemanager.desktop -t /app/share/applications
+      - install -Dm644 io.github.koc13.timemanager.metainfo.xml -t /app/share/metainfo
+      - install -Dm644 icon.svg /app/share/icons/hicolor/scalable/apps/io.github.koc13.timemanager.svg
+    sources:
+      - type: dir
+        path: ../../build/linux/x64/release/bundle
+        dest: bundle
+      - type: file
+        path: io.github.koc13.timemanager.desktop
+      - type: file
+        path: io.github.koc13.timemanager.metainfo.xml
+      - type: file
+        path: ../../assets/icon/icon.svg

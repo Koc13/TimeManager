@@ -1,0 +1,9 @@
+[Desktop Entry]
+Type=Application
+Name=Time Manager
+Comment=To-do lists, goals, habits and a focus timer, stored as Markdown
+Exec=time_manager
+Icon=io.github.koc13.timemanager
+Categories=Office;ProjectManagement;
+Keywords=todo;tasks;habits;goals;pomodoro;journal;
+StartupWMClass=io.github.koc13.timemanager

@@ -1,0 +1,44 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<component type="desktop-application">
+  <id>io.github.koc13.timemanager</id>
+  <name>Time Manager</name>
+  <summary>To-do lists, goals, habits and a focus timer</summary>
+  <developer id="io.github.koc13">
+    <name>Koc13</name>
+  </developer>
+  <metadata_license>CC0-1.0</metadata_license>
+  <project_license>GPL-3.0-or-later</project_license>
+  <description>
+    <p>
+      A personal planner that keeps everything as plain Markdown files with
+      YAML frontmatter, in a folder you choose. Sync the folder between
+      devices with Syncthing and read it in Obsidian; there is no account
+      and no server.
+    </p>
+    <ul>
+      <li>Daily, weekly and monthly to-do lists, with a review of unfinished tasks</li>
+      <li>Recurring tasks, deadlines and reminders</li>
+      <li>Measurable goals with sub-goals and derived progress</li>
+      <li>Habits on a weekly heat-map grid</li>
+      <li>A Pomodoro timer that logs time to goals and habits</li>
+      <li>A journal and review notes for each day, week and month</li>
+    </ul>
+    <p>The data folder must be inside your Documents folder.</p>
+  </description>
+  <launchable type="desktop-id">io.github.koc13.timemanager.desktop</launchable>
+  <url type="homepage">https://github.com/Koc13/TimeManager</url>
+  <url type="bugtracker">https://github.com/Koc13/TimeManager/issues</url>
+  <content_rating type="oars-1.1"/>
+  <supports>
+    <control>pointing</control>
+    <control>keyboard</control>
+    <control>touch</control>
+  </supports>
+  <releases>
+    <release version="0.1.0" date="2026-10-16">
+      <description>
+        <p>First public release.</p>
+      </description>
+    </release>
+  </releases>
+</component>

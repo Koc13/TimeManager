@@ -43,4 +43,10 @@ class LocalSettings {
 
   Future<void> setReminders(Map<String, String> value) =>
       _update('reminders', value);
+
+  /// Plan/review reminder settings as JSON (see domain/plan_reminders.dart).
+  Future<Object?> planReminders() async => (await _read())['plan_reminders'];
+
+  Future<void> setPlanReminders(Map<String, Object?> json) =>
+      _update('plan_reminders', json);
 }

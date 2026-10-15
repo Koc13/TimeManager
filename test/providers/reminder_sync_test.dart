@@ -16,15 +16,19 @@ class RecordingNotifications extends NoNotifications {
   final calls = <String>[];
 
   @override
-  Future<void> scheduleTaskReminder({
-    required String taskId,
+  Future<void> schedule({
+    required int id,
+    required ReminderChannel channel,
     required String title,
+    required String body,
     required DateTime at,
-  }) async => calls.add('schedule $taskId ${at.hour}:${at.minute}');
+    required String payload,
+    Repeat repeat = Repeat.none,
+  }) async => calls.add('schedule $payload ${at.hour}:${at.minute}');
 
   @override
-  Future<void> cancelTaskReminder(String taskId) async =>
-      calls.add('cancel $taskId');
+  Future<void> cancel(int id) async =>
+      calls.add('cancel ${id == taskNotificationId('t_1') ? 't_1' : id}');
 }
 
 void main() {

@@ -126,6 +126,11 @@ void main() {
     taps.add(timerPayload);
     await tester.pumpAndSettle();
     expect(find.widgetWithText(AppBar, 'Timer'), findsOneWidget);
+
+    // A weekly review reminder opens the weekly list.
+    taps.add('open:week');
+    await tester.pumpAndSettle();
+    expect(find.text('Week 42'), findsOneWidget);
     await taps.close();
   });
 }

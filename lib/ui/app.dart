@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../domain/timer_state.dart';
 import '../notifications/notification_service.dart';
 import '../providers/data_providers.dart';
+import '../providers/plan_reminders.dart';
 import '../providers/timer_controller.dart';
 import '../storage/data_store.dart';
 import '../storage/local_settings.dart';
@@ -44,6 +45,7 @@ class TimeManagerApp extends StatefulWidget {
 class _TimeManagerAppState extends State<TimeManagerApp> {
   DataStore? _store;
   TimerState? _timer;
+  Object? _planReminders;
   bool _loading = true;
   String? _error;
 
@@ -60,14 +62,17 @@ class _TimeManagerAppState extends State<TimeManagerApp> {
     final store = await DataStore.open(path);
     await widget.settings.setDataRoot(path);
     final timer = TimerState.fromJson(await widget.settings.timer());
+    final planReminders = await widget.settings.planReminders();
     setState(() {
       _store = store;
       _timer = timer;
+      _planReminders = planReminders;
     });
   }
 
   Future<void> _openRemembered() async {
     _timer = TimerState.fromJson(await widget.settings.timer());
+    _planReminders = await widget.settings.planReminders();
     final root = await widget.settings.dataRoot();
     if (root != null) {
       try {
@@ -106,6 +111,7 @@ class _TimeManagerAppState extends State<TimeManagerApp> {
         localSettingsProvider.overrideWithValue(widget.settings),
         notificationsProvider.overrideWithValue(widget.notifications),
         restoredTimerProvider.overrideWithValue(_timer),
+        restoredPlanRemindersProvider.overrideWithValue(_planReminders),
         switchDataFolderProvider.overrideWithValue(_switchTo),
         pickDataFolderProvider.overrideWithValue(widget.pickFolder),
       ],

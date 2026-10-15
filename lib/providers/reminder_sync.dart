@@ -2,6 +2,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../domain/app_data.dart';
 import '../domain/recurring.dart';
+import '../notifications/notification_service.dart';
 import 'data_providers.dart';
 
 /// Keeps the OS's scheduled task reminders equal to what the files say.
@@ -50,12 +51,19 @@ class ReminderSync {
 
     for (final id in scheduled.keys) {
       if (wanted[id]?.key != scheduled[id]) {
-        await notify.cancelTaskReminder(id);
+        await notify.cancel(taskNotificationId(id));
       }
     }
     for (final MapEntry(key: id, value: r) in wanted.entries) {
       if (scheduled[id] != r.key) {
-        await notify.scheduleTaskReminder(taskId: id, title: r.title, at: r.at);
+        await notify.schedule(
+          id: taskNotificationId(id),
+          channel: ReminderChannel.tasks,
+          title: r.title,
+          body: 'Reminder',
+          at: r.at,
+          payload: id,
+        );
       }
     }
     await settings?.setReminders({

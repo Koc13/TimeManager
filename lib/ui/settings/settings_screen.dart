@@ -4,8 +4,9 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../providers/data_providers.dart';
 import '../feedback.dart';
 import '../todo/done_section.dart' show SectionHeader;
+import 'plan_reminder_tiles.dart';
 
-/// App settings. For now: where the data lives. More will follow.
+/// App settings: where the data lives, and the plan/review reminders.
 class SettingsScreen extends ConsumerWidget {
   const SettingsScreen({
     super.key,
@@ -72,6 +73,8 @@ class SettingsScreen extends ConsumerWidget {
             onTap: () =>
                 runAction(context, ref.read(appDataProvider.notifier).reload),
           ),
+          const SectionHeader('Reminders'),
+          const PlanReminderTiles(),
         ],
       ),
     );

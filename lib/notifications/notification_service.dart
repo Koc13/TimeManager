@@ -37,13 +37,20 @@ abstract interface class Notifications {
   /// with it and silence it.
   Future<void> hideTimerRunning();
 
-  Future<void> scheduleTaskReminder({
-    required String taskId,
+  /// A reminder at [at] (Android only). [repeat] makes the OS repeat it
+  /// daily or weekly at the same time; a repeating one keeps firing even if
+  /// the app isn't opened. [payload] comes back through [taps].
+  Future<void> schedule({
+    required int id,
+    required ReminderChannel channel,
     required String title,
+    required String body,
     required DateTime at,
+    required String payload,
+    Repeat repeat = Repeat.none,
   });
 
-  Future<void> cancelTaskReminder(String taskId);
+  Future<void> cancel(int id);
 
   /// Asks for permission to post notifications (Android 13+). Safe to call
   /// repeatedly: the OS only shows the prompt once.
@@ -51,6 +58,10 @@ abstract interface class Notifications {
 }
 
 const timerPayload = 'timer';
+
+enum Repeat { none, daily, weekly }
+
+enum ReminderChannel { tasks, plans }
 
 /// flutter_local_notifications on Android; a silent no-op elsewhere (the
 /// Linux plugin has no scheduling at all, and Android is the main target).
@@ -86,12 +97,21 @@ class NotificationService implements Notifications {
     priority: Priority.high,
   );
 
-  static const _reminder = AndroidNotificationDetails(
-    'task_reminders',
-    'Task reminders',
-    importance: Importance.high,
-    priority: Priority.high,
-  );
+  static const _channels = {
+    ReminderChannel.tasks: AndroidNotificationDetails(
+      'task_reminders',
+      'Task reminders',
+      importance: Importance.high,
+      priority: Priority.high,
+    ),
+    ReminderChannel.plans: AndroidNotificationDetails(
+      'plan_reminders',
+      'Plan and review reminders',
+      channelDescription: 'Daily, weekly and monthly planning and reviews',
+      importance: Importance.high,
+      priority: Priority.high,
+    ),
+  };
 
   bool get _enabled => Platform.isAndroid;
 
@@ -207,27 +227,38 @@ class NotificationService implements Notifications {
   }
 
   @override
-  Future<void> scheduleTaskReminder({
-    required String taskId,
+  Future<void> schedule({
+    required int id,
+    required ReminderChannel channel,
     required String title,
+    required String body,
     required DateTime at,
+    required String payload,
+    Repeat repeat = Repeat.none,
   }) async {
     if (!_enabled) return;
     await _plugin.zonedSchedule(
-      id: taskNotificationId(taskId),
+      id: id,
       title: title,
-      body: 'Reminder',
-      payload: taskId,
+      body: body,
+      payload: payload,
       scheduledDate: tz.TZDateTime.from(at, tz.local),
-      notificationDetails: const NotificationDetails(android: _reminder),
+      notificationDetails: NotificationDetails(android: _channels[channel]),
+      // Exact (USE_EXACT_ALARM): a reminder minutes late
+      // is a reminder missed.
       androidScheduleMode: AndroidScheduleMode.exactAllowWhileIdle,
+      matchDateTimeComponents: switch (repeat) {
+        Repeat.none => null,
+        Repeat.daily => DateTimeComponents.time,
+        Repeat.weekly => DateTimeComponents.dayOfWeekAndTime,
+      },
     );
   }
 
   @override
-  Future<void> cancelTaskReminder(String taskId) async {
+  Future<void> cancel(int id) async {
     if (!_enabled) return;
-    await _plugin.cancel(id: taskNotificationId(taskId));
+    await _plugin.cancel(id: id);
   }
 }
 
@@ -260,24 +291,33 @@ class NoNotifications implements Notifications {
   @override
   Future<void> hideTimerRunning() async {}
   @override
-  Future<void> scheduleTaskReminder({
-    required String taskId,
+  Future<void> schedule({
+    required int id,
+    required ReminderChannel channel,
     required String title,
+    required String body,
     required DateTime at,
+    required String payload,
+    Repeat repeat = Repeat.none,
   }) async {}
   @override
-  Future<void> cancelTaskReminder(String taskId) async {}
+  Future<void> cancel(int id) async {}
   @override
   Future<void> requestPermission() async {}
 }
 
+/// Notification IDs. Fixed small numbers for the timer (1, 2) and plan
+/// reminders (100–199); task reminders hash into 1000 and up.
+int planNotificationId(int reminderIndex, int occurrence) =>
+    100 + reminderIndex * 10 + occurrence;
+
 /// A stable notification ID per task, derived from its ID so nothing has to
-/// store a mapping. Kept away from the timer's IDs 1 and 2.
+/// store a mapping.
 int taskNotificationId(String taskId) {
   // FNV-1a: String.hashCode isn't guaranteed stable across runs.
   var hash = 0x811c9dc5;
   for (final unit in taskId.codeUnits) {
     hash = ((hash ^ unit) * 0x01000193) & 0x7fffffff;
   }
-  return hash < 16 ? hash + 16 : hash;
+  return hash < 1000 ? hash + 1000 : hash;
 }

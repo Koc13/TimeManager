@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../domain/period.dart';
 import '../../providers/data_providers.dart';
+import '../../providers/plan_reminders.dart';
 import '../feedback.dart';
 import '../format.dart';
 import 'task_editor.dart';
@@ -25,9 +26,19 @@ class TodoPager extends ConsumerStatefulWidget {
 }
 
 class _TodoPagerState extends ConsumerState<TodoPager> {
-  final _pages = PageController();
-  int _page = 0;
+  // A plan/review reminder tapped from another section asks for a list
+  // before this pager exists, so a pending request is taken here at
+  // creation (and cleared), as well as listened for afterwards.
+  late int _page = _takeFocus() ?? 0;
+  late final _pages = PageController(initialPage: _page);
   late List<Period> _periods = _current(ref.read(todayProvider));
+
+  int? _takeFocus() {
+    final focus = ref.read(todoFocusProvider);
+    if (focus == null) return null;
+    Future.microtask(() => ref.read(todoFocusProvider.notifier).clear());
+    return focus.$1.index;
+  }
 
   static List<Period> _current(DateTime today) => [
     for (final kind in PeriodKind.values) Period.of(kind, today),
@@ -99,6 +110,16 @@ class _TodoPagerState extends ConsumerState<TodoPager> {
   Widget build(BuildContext context) {
     ref.listen(todayProvider, (_, today) {
       setState(() => _periods = _current(today));
+    });
+    // A tapped plan/review reminder: show that list, at the current period.
+    ref.listen(todoFocusProvider, (_, focus) {
+      if (focus == null) return;
+      final page = _takeFocus()!;
+      setState(() {
+        _periods = _current(ref.read(todayProvider));
+        _page = page;
+      });
+      _pages.jumpToPage(page);
     });
     final isCurrent =
         _period == Period.of(_period.kind, ref.watch(todayProvider));

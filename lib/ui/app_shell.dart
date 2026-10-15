@@ -5,7 +5,9 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../notifications/notification_service.dart';
+import '../domain/period.dart';
 import '../providers/data_providers.dart';
+import '../providers/plan_reminders.dart';
 import '../providers/folder_watch.dart';
 import '../providers/reminder_sync.dart';
 import '../providers/timer_controller.dart';
@@ -62,6 +64,11 @@ class _AppShellState extends ConsumerState<AppShell>
       setState(
         () => _section = payload == timerPayload ? Section.timer : Section.todo,
       );
+      // A plan/review reminder ("open:week") also picks the list.
+      if (payload.startsWith('open:')) {
+        final kind = PeriodKind.values.asNameMap()[payload.substring(5)];
+        if (kind != null) ref.read(todoFocusProvider.notifier).show(kind);
+      }
     });
   }
 
@@ -89,6 +96,11 @@ class _AppShellState extends ConsumerState<AppShell>
     ref.read(todayProvider.notifier).refresh();
     _scheduleMidnight();
     await runAction(context, ref.read(taskActionsProvider).startDay);
+    if (!mounted) return;
+    await runAction(
+      context,
+      ref.read(planRemindersProvider.notifier).reschedule,
+    );
   }
 
   void _scheduleMidnight() {

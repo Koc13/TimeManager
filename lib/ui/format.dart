@@ -71,3 +71,15 @@ String repeatLabel(RepeatRule? rule) => switch (rule?.every) {
         ? 'Every month'
         : 'Monthly on day ${rule.dayOfMonth}',
 };
+
+const _weekdaysLong = [
+  'Monday',
+  'Tuesday',
+  'Wednesday',
+  'Thursday',
+  'Friday',
+  'Saturday',
+  'Sunday',
+];
+
+String weekdayLong(int weekday) => _weekdaysLong[weekday - 1];

@@ -8,6 +8,7 @@ import '../../providers/data_providers.dart';
 import '../feedback.dart';
 import '../format.dart';
 import 'task_editor.dart';
+import '../../providers/actions/task_actions.dart';
 
 class TaskTile extends ConsumerWidget {
   const TaskTile({super.key, required this.period, required this.task});
@@ -36,7 +37,7 @@ class TaskTile extends ConsumerWidget {
         value: task.isDone,
         onChanged: (done) => runAction(
           context,
-          () => ref.read(appDataProvider.notifier).setDone(period, task, done!),
+          () => ref.read(taskActionsProvider).setDone(period, task, done!),
         ),
       ),
       title: Text(task.title),

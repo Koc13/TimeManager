@@ -7,6 +7,7 @@ import '../../domain/task_rules.dart';
 import '../../providers/data_providers.dart';
 import '../feedback.dart';
 import '../format.dart';
+import '../../providers/actions/task_actions.dart';
 
 /// Unfinished tasks offered for [day]: on today's page, what's left from
 /// earlier days; on tomorrow's page (planning in the evening), what's still
@@ -23,7 +24,7 @@ class LeftoversCard extends ConsumerWidget {
     final items = leftovers(ref.watch(appDataProvider), day, today);
     if (items.isEmpty) return const SizedBox.shrink();
 
-    final data = ref.read(appDataProvider.notifier);
+    final data = ref.read(taskActionsProvider);
     final theme = Theme.of(context);
     final planningTomorrow = day != Day(today);
     final onlyToday = items.every((i) => i.from == Day(today));

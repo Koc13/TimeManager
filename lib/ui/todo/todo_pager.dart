@@ -7,6 +7,7 @@ import '../feedback.dart';
 import '../format.dart';
 import 'task_editor.dart';
 import 'period_page.dart';
+import '../../providers/actions/task_actions.dart';
 
 /// Daily, Weekly and Monthly ToDo side by side in a horizontal PageView.
 ///
@@ -56,7 +57,7 @@ class _TodoPagerState extends ConsumerState<TodoPager> {
     final period = _period;
     final result = await showTaskEditor(context);
     if (result == null || !mounted) return;
-    final data = ref.read(appDataProvider.notifier);
+    final data = ref.read(taskActionsProvider);
     final repeat = result.repeat;
     final reminder = result.reminder;
     await runAction(

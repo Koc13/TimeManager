@@ -12,6 +12,8 @@ import 'goal_editor.dart';
 import 'goal_feedback.dart';
 import 'goals_screen.dart' show GoalRow, goalProgressLabel;
 import 'log_dialog.dart';
+import '../../providers/actions/activity_actions.dart';
+import '../../providers/actions/goal_actions.dart';
 
 enum _Action { edit, addSubGoal, complete, hold, reactivate, delete }
 
@@ -27,7 +29,7 @@ class GoalDetailScreen extends ConsumerWidget {
     final messenger = ScaffoldMessenger.maybeOf(context);
     await runAction(context, () async {
       final reached = await ref
-          .read(appDataProvider.notifier)
+          .read(activityActionsProvider)
           .addGoalLog(
             goal: goal.id,
             amount: draft.amount,
@@ -44,7 +46,7 @@ class GoalDetailScreen extends ConsumerWidget {
     Goal goal,
     _Action action,
   ) async {
-    final data = ref.read(appDataProvider.notifier);
+    final data = ref.read(goalActionsProvider);
     switch (action) {
       case _Action.edit:
         final draft = await showGoalEditor(context, goal: goal);
@@ -77,18 +79,12 @@ class GoalDetailScreen extends ConsumerWidget {
       case _Action.complete:
         await runAction(
           context,
-          () => data.setGoalStatus(goal, GoalStatus.completed),
+          () => data.setStatus(goal, GoalStatus.completed),
         );
       case _Action.hold:
-        await runAction(
-          context,
-          () => data.setGoalStatus(goal, GoalStatus.onHold),
-        );
+        await runAction(context, () => data.setStatus(goal, GoalStatus.onHold));
       case _Action.reactivate:
-        await runAction(
-          context,
-          () => data.setGoalStatus(goal, GoalStatus.active),
-        );
+        await runAction(context, () => data.setStatus(goal, GoalStatus.active));
       case _Action.delete:
         final ok = await showDialog<bool>(
           context: context,
@@ -256,7 +252,7 @@ class GoalDetailScreen extends ConsumerWidget {
                   await runAction(
                     context,
                     () => ref
-                        .read(appDataProvider.notifier)
+                        .read(activityActionsProvider)
                         .deleteGoalLog(day, log.id),
                   );
                 }

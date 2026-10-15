@@ -15,6 +15,7 @@ import '../format.dart';
 import '../goals/goal_feedback.dart';
 import '../goals/log_dialog.dart';
 import '../todo/done_section.dart' show SectionHeader;
+import '../../providers/actions/activity_actions.dart';
 
 /// Pick a topic and presets, then a big countdown; today's totals below.
 class TimerScreen extends ConsumerWidget {
@@ -368,7 +369,7 @@ class _BreakOffer extends ConsumerWidget {
               final messenger = ScaffoldMessenger.maybeOf(context);
               await runAction(context, () async {
                 final reached = await ref
-                    .read(appDataProvider.notifier)
+                    .read(activityActionsProvider)
                     .addGoalLog(
                       goal: goal.id,
                       amount: draft.amount,

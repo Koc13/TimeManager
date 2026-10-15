@@ -48,7 +48,7 @@ void main() {
       final data = const AppData().withRecurring(
         template(const RepeatRule.daily(), reminder: 19 * 60),
       );
-      final first = generateRecurring(data, wed);
+      final first = generateRecurringTasks(data, wed);
       final task = first.docs.single.tasks.single;
       expect(first.docs.single.period, Day(wed));
       expect(task.recurring, 'r_1');
@@ -60,7 +60,7 @@ void main() {
         PeriodDoc.empty(Day(wed)),
       ]);
       expect(
-        generateRecurring(after, wed.add(const Duration(hours: 5))).docs,
+        generateRecurringTasks(after, wed.add(const Duration(hours: 5))).docs,
         isEmpty,
       );
     });
@@ -82,7 +82,7 @@ void main() {
             ),
           ]);
       final docs = {
-        for (final d in generateRecurring(data, wed).docs) d.period.key: d,
+        for (final d in generateRecurringTasks(data, wed).docs) d.period.key: d,
       };
       expect(docs['2026-10-13']!.tasks.single.droppedAt, wed);
       expect(docs['2026-10-14']!.tasks.single.recurring, 'r_1');
@@ -105,7 +105,7 @@ void main() {
               ],
             ),
           ]);
-      final result = generateRecurring(data, wed);
+      final result = generateRecurringTasks(data, wed);
       expect(result.docs, isEmpty);
       expect(result.templates.single.lastGenerated, '2026-10-14');
     });
@@ -127,7 +127,7 @@ void main() {
               ],
             ),
           ]);
-      final doc = generateRecurring(data, wed).docs.single;
+      final doc = generateRecurringTasks(data, wed).docs.single;
       expect(doc.period, const Week(2026, 42));
       expect(doc.tasks, hasLength(2));
       expect(doc.tasks.last.reminder, isNull, reason: 'weekly list: no time');
@@ -137,8 +137,8 @@ void main() {
       final data = const AppData().withRecurring(
         template(const RepeatRule.weekdays({7})),
       );
-      expect(generateRecurring(data, wed).docs, isEmpty);
-      expect(generateRecurring(data, sun).docs.single.tasks, hasLength(1));
+      expect(generateRecurringTasks(data, wed).docs, isEmpty);
+      expect(generateRecurringTasks(data, sun).docs.single.tasks, hasLength(1));
     });
   });
 

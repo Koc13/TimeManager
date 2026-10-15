@@ -6,6 +6,7 @@ import '../../domain/period.dart';
 import '../../providers/data_providers.dart';
 import '../feedback.dart';
 import '../format.dart';
+import '../../providers/actions/task_actions.dart';
 
 /// The period's Done page: tasks completed in it (from any list), then
 /// "Other" activity from the timer and trackers. Everything is derived.
@@ -37,9 +38,7 @@ class DoneSection extends ConsumerWidget {
               value: true,
               onChanged: (_) => runAction(
                 context,
-                () => ref
-                    .read(appDataProvider.notifier)
-                    .setDone(list, task, false),
+                () => ref.read(taskActionsProvider).setDone(list, task, false),
               ),
             ),
             title: Text(task.title),

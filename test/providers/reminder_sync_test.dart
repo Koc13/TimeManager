@@ -10,6 +10,7 @@ import 'package:time_manager/storage/data_store.dart';
 import 'package:time_manager/storage/local_settings.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:time_manager/providers/actions/task_actions.dart';
 
 class RecordingNotifications extends NoNotifications {
   final calls = <String>[];
@@ -69,7 +70,7 @@ void main() {
   test('schedules, reschedules on change, cancels when done', () async {
     final c = container();
     c.read(reminderSyncProvider);
-    final data = c.read(appDataProvider.notifier);
+    final data = c.read(taskActionsProvider);
 
     await data.saveTask(today, task());
     await settle();
@@ -104,7 +105,7 @@ void main() {
     () async {
       final c = container();
       c.read(reminderSyncProvider);
-      await c.read(appDataProvider.notifier).saveTask(today, task());
+      await c.read(taskActionsProvider).saveTask(today, task());
       await settle();
 
       final file = File('${dir.path}/data/periods/2026/10/2026-10-14.md');

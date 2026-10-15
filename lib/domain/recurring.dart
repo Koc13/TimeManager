@@ -124,10 +124,8 @@ const _keep = Object();
 /// (`lastGenerated`), or already holds an *open* instance of it (one that
 /// rolled over from an earlier period), so an unfinished "Clean room"
 /// doesn't double up.
-({List<PeriodDoc> docs, List<RecurringTemplate> templates}) generateRecurring(
-  AppData data,
-  DateTime now,
-) {
+({List<PeriodDoc> docs, List<RecurringTemplate> templates})
+generateRecurringTasks(AppData data, DateTime now) {
   final docs = <String, PeriodDoc>{};
   final templates = <RecurringTemplate>[];
   for (final template in data.recurring.values) {

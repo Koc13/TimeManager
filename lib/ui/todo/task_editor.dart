@@ -9,6 +9,7 @@ import '../../providers/data_providers.dart';
 import '../../domain/recurring.dart';
 import '../feedback.dart';
 import '../format.dart';
+import '../../providers/actions/task_actions.dart';
 
 /// What the task sheet returns. [repeat] is only offered for new tasks;
 /// when set, the caller creates a recurring template instead of a task.
@@ -299,7 +300,7 @@ Future<void> showTaskActions(
   Period period,
   Task task,
 ) async {
-  final data = ref.read(appDataProvider.notifier);
+  final data = ref.read(taskActionsProvider);
   const kindLabels = {
     PeriodKind.day: 'Move to daily list',
     PeriodKind.week: 'Move to weekly list',

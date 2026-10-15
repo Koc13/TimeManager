@@ -10,6 +10,8 @@ import '../feedback.dart';
 import '../format.dart';
 import '../goals/goal_feedback.dart';
 import 'habit_editor.dart';
+import '../../providers/actions/activity_actions.dart';
+import '../../providers/actions/habit_actions.dart';
 
 const _cell = 40.0;
 const _weekdayLetters = ['M', 'T', 'W', 'T', 'F', 'S', 'S'];
@@ -45,7 +47,7 @@ class _HabitsScreenState extends ConsumerState<HabitsScreen> {
     await runAction(
       context,
       () => ref
-          .read(appDataProvider.notifier)
+          .read(habitActionsProvider)
           .createHabit(
             title: draft.title,
             kind: draft.kind,
@@ -57,7 +59,7 @@ class _HabitsScreenState extends ConsumerState<HabitsScreen> {
   }
 
   Future<void> _tapCell(Habit habit, Day day) async {
-    final data = ref.read(appDataProvider.notifier);
+    final activity = ref.read(activityActionsProvider);
     final doc = ref.read(appDataProvider).period(day);
     final entry = doc.habitEntries
         .where((e) => e.habit == habit.id)
@@ -72,7 +74,7 @@ class _HabitsScreenState extends ConsumerState<HabitsScreen> {
     }
     final messenger = ScaffoldMessenger.maybeOf(context);
     await runAction(context, () async {
-      final reached = await data.setHabitEntry(day, habit.id, value);
+      final reached = await activity.setHabitEntry(day, habit.id, value);
       announceReached(messenger, ref, reached);
     });
   }
@@ -124,7 +126,7 @@ class _HabitsScreenState extends ConsumerState<HabitsScreen> {
   }
 
   Future<void> _habitMenu(Habit habit) async {
-    final data = ref.read(appDataProvider.notifier);
+    final data = ref.read(habitActionsProvider);
     final choice = await showModalBottomSheet<String>(
       context: context,
       showDragHandle: true,

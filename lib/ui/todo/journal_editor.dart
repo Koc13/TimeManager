@@ -7,6 +7,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../domain/period.dart';
 import '../../providers/data_providers.dart';
 import 'done_section.dart';
+import '../../providers/actions/task_actions.dart';
 
 /// The period file's Markdown body: the nightly journal for a day, review
 /// notes for a week or month. Saves itself shortly after typing stops and
@@ -29,13 +30,13 @@ class _JournalEditorState extends ConsumerState<JournalEditor> {
 
   // Captured up front because the last save runs in dispose(), where
   // looking up ancestors or using ref is no longer allowed.
-  late final AppDataController _data;
+  late final TaskActions _data;
   ScaffoldMessengerState? _messenger;
 
   @override
   void initState() {
     super.initState();
-    _data = ref.read(appDataProvider.notifier);
+    _data = ref.read(taskActionsProvider);
   }
 
   @override

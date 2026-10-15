@@ -8,6 +8,7 @@ import '../domain/ids.dart';
 import '../domain/target_ref.dart';
 import '../domain/timer_state.dart';
 import 'data_providers.dart';
+import 'actions/activity_actions.dart';
 
 /// The timer that was running when the app last stopped, read from local
 /// settings before the app starts (app.dart overrides this).
@@ -109,7 +110,7 @@ class TimerController extends Notifier<TimerState?> {
 
   Future<void> _record(TimerState s, int minutes) async {
     final reached = await ref
-        .read(appDataProvider.notifier)
+        .read(activityActionsProvider)
         .recordSession(
           Session(
             id: s.sessionId,

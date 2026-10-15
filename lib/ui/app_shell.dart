@@ -16,6 +16,7 @@ import 'habits/habits_screen.dart';
 import 'settings/settings_screen.dart';
 import 'timer/timer_screen.dart';
 import 'todo/todo_pager.dart';
+import '../providers/actions/task_actions.dart';
 
 enum Section { todo, timer, goals, habits, settings }
 
@@ -87,7 +88,7 @@ class _AppShellState extends ConsumerState<AppShell>
   Future<void> _dayCheck() async {
     ref.read(todayProvider.notifier).refresh();
     _scheduleMidnight();
-    await runAction(context, ref.read(appDataProvider.notifier).startDay);
+    await runAction(context, ref.read(taskActionsProvider).startDay);
   }
 
   void _scheduleMidnight() {

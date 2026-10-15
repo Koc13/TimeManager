@@ -10,6 +10,7 @@ import '../format.dart';
 import '../todo/done_section.dart' show SectionHeader;
 import 'goal_detail_screen.dart';
 import 'goal_editor.dart';
+import '../../providers/actions/goal_actions.dart';
 
 /// Active goals with progress bars (sub-goals indented), then On hold
 /// (collapsed), then Completed with dates: one scroll.
@@ -29,7 +30,7 @@ class GoalsScreen extends ConsumerWidget {
     await runAction(
       context,
       () => ref
-          .read(appDataProvider.notifier)
+          .read(goalActionsProvider)
           .createGoal(
             title: draft.title,
             kind: draft.kind,

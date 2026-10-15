@@ -126,7 +126,7 @@ class NotificationService implements Notifications {
     tz.setLocalLocation(tz.getLocation(zone.identifier));
     await _plugin.initialize(
       settings: const InitializationSettings(
-        android: AndroidInitializationSettings('@mipmap/ic_launcher'),
+        android: AndroidInitializationSettings('@drawable/ic_notification'),
       ),
       onDidReceiveNotificationResponse: (response) =>
           _taps.add(response.payload ?? ''),

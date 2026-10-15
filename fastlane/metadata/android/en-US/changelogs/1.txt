@@ -1,0 +1,1 @@
+First public release: to-do lists, goals, habits, Pomodoro timer, journal and reminders, all stored as Markdown files.

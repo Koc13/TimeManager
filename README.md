@@ -1,17 +1,28 @@
-# first_app
+# Time Manager
 
-A new Flutter project.
+To-do lists, goals, habits and a focus timer for Android and Linux. Everything
+is stored as Markdown files with YAML frontmatter in a folder you choose, so
+Syncthing can sync it between devices and Obsidian can read it. There is no
+account and no server.
 
-## Getting Started
+- Daily, weekly and monthly to-do lists, with a review of unfinished tasks
+- Recurring tasks, deadlines and reminders
+- Measurable goals with sub-goals and derived progress
+- Habits on a weekly heat-map grid
+- A Pomodoro timer that logs time to goals and habits
+- A journal and review notes for each day, week and month
 
-This project is a starting point for a Flutter application.
+Licensed under GPL-3.0-or-later (see `LICENSE`). Inter and Phosphor fonts are
+bundled under their own licences in `assets/fonts/`.
 
-A few resources to get you started if this is your first Flutter project:
+## Building
 
-- [Learn Flutter](https://docs.flutter.dev/get-started/learn-flutter)
-- [Write your first Flutter app](https://docs.flutter.dev/get-started/codelab)
-- [Flutter learning resources](https://docs.flutter.dev/reference/learning-resources)
+Needs Flutter 3.47 (stable).
 
-For help getting started with Flutter development, view the
-[online documentation](https://docs.flutter.dev/), which offers tutorials,
-samples, guidance on mobile development, and a full API reference.
+```sh
+flutter pub get
+flutter test
+flutter run -d linux          # or an Android device id
+flutter build apk --release   # Android
+flutter build linux --release # Linux bundle in build/linux/x64/release/bundle
+```

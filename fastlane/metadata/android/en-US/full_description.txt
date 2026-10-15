@@ -1,0 +1,13 @@
+A personal planner that keeps everything as plain Markdown files with YAML frontmatter, in a folder you choose. Sync the folder between devices with Syncthing and read it in Obsidian; there is no account and no server.
+
+<ul>
+<li>Daily, weekly and monthly to-do lists, with a review of unfinished tasks</li>
+<li>Recurring tasks, deadlines and reminders</li>
+<li>Measurable goals with sub-goals and derived progress</li>
+<li>Habits on a weekly heat-map grid</li>
+<li>A Pomodoro timer that logs time to goals and habits</li>
+<li>A journal and review notes for each day, week and month</li>
+<li>Plan and review reminders for the day, week and month</li>
+</ul>
+
+The app needs "All files access" to read and write the folder that Syncthing shares.

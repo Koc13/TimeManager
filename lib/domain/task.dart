@@ -14,6 +14,7 @@ class Task {
     this.rolledOver = 0,
     required this.created,
     this.doneAt,
+    this.droppedAt,
     this.extra = const {},
   });
 
@@ -36,10 +37,17 @@ class Task {
   final DateTime created;
   final DateTime? doneAt;
 
+  /// When the user chose not to carry this unfinished task forward. It
+  /// stays in its day's file as history, but no longer counts as open.
+  final DateTime? droppedAt;
+
   /// Frontmatter keys this app doesn't know, kept so they survive a write.
   final Map<String, Object?> extra;
 
   bool get isDone => doneAt != null;
+
+  /// Still to do: neither done nor dropped.
+  bool get isOpen => doneAt == null && droppedAt == null;
 
   Task copyWith({
     String? title,
@@ -49,6 +57,7 @@ class Task {
     Object? link = keep,
     int? rolledOver,
     Object? doneAt = keep,
+    Object? droppedAt = keep,
   }) => Task(
     id: id,
     title: title ?? this.title,
@@ -60,6 +69,7 @@ class Task {
     rolledOver: rolledOver ?? this.rolledOver,
     created: created,
     doneAt: pick(doneAt, this.doneAt),
+    droppedAt: pick(droppedAt, this.droppedAt),
     extra: extra,
   );
 }

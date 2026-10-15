@@ -319,6 +319,15 @@ Future<void> showTaskActions(
             onTap: () => Navigator.pop(context, 'edit'),
           ),
           ListTile(
+            leading: const Icon(Icons.redo),
+            title: Text(switch (period.kind) {
+              PeriodKind.day => 'Postpone to ${dayLabel(period.next.start)}',
+              PeriodKind.week => 'Postpone to next week',
+              PeriodKind.month => 'Postpone to next month',
+            }),
+            onTap: () => Navigator.pop(context, 'postpone'),
+          ),
+          ListTile(
             leading: const Icon(Icons.link),
             title: Text(
               task.link == null ? 'Link to goal or habit' : 'Change link',
@@ -373,6 +382,8 @@ Future<void> showTaskActions(
         context,
         () => data.saveTask(period, task.copyWith(link: link.target)),
       );
+    case 'postpone':
+      await runAction(context, () => data.postpone(period, task));
     case 'stop':
       await runAction(context, () => data.deleteRecurring(task.recurring!));
     case 'delete':

@@ -138,13 +138,59 @@ class AppDataController extends Notifier<AppData> {
       saveTask(period, task.copyWith(doneAt: done ? _now() : null));
 
   /// Moves [task] out of [from] into the matching list of [kind].
-  Future<void> moveTask(Period from, Task task, PeriodKind kind) {
-    final to = rules.moveTarget(from, kind, _now());
+  Future<void> moveTask(Period from, Task task, PeriodKind kind) =>
+      moveTaskTo(from, task, rules.moveTarget(from, kind, _now()));
+
+  /// Moves [task] from [from] to [to]. [deferred] counts it as carried
+  /// forward (the ↻ badge), as postponing and keeping a leftover do.
+  Future<void> moveTaskTo(
+    Period from,
+    Task task,
+    Period to, {
+    bool deferred = false,
+  }) {
     if (to == from) return Future.value();
+    final moved = deferred
+        ? task.copyWith(rolledOver: task.rolledOver + 1)
+        : task;
     return _savePeriods([
       rules.removeTask(state.period(from), task.id),
-      rules.upsertTask(state.period(to), task),
+      rules.upsertTask(state.period(to), moved),
     ]);
+  }
+
+  /// To the next day (or week, or month for those lists).
+  Future<void> postpone(Period from, Task task) =>
+      moveTaskTo(from, task, from.next, deferred: true);
+
+  /// Carries leftovers into [to] (one write per file touched).
+  Future<void> keepLeftovers(List<({Day from, Task task})> items, Day to) {
+    final docs = <String, PeriodDoc>{};
+    PeriodDoc doc(Period p) => docs[p.key] ?? state.period(p);
+    for (final (:from, :task) in items) {
+      docs[from.key] = rules.removeTask(doc(from), task.id);
+      docs[to.key] = rules.upsertTask(
+        doc(to),
+        task.copyWith(rolledOver: task.rolledOver + 1),
+      );
+    }
+    return _savePeriods(docs.values);
+  }
+
+  /// Marks leftovers as dropped where they are; [undo] clears it again.
+  Future<void> dropLeftovers(
+    List<({Day from, Task task})> items, {
+    bool undo = false,
+  }) {
+    final docs = <String, PeriodDoc>{};
+    for (final (:from, :task) in items) {
+      final doc = docs[from.key] ?? state.period(from);
+      docs[from.key] = rules.upsertTask(
+        doc,
+        task.copyWith(droppedAt: undo ? null : _now()),
+      );
+    }
+    return _savePeriods(docs.values);
   }
 
   Future<void> setJournal(Period period, String text) {

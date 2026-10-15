@@ -6,6 +6,7 @@ import '../../domain/task_rules.dart';
 import '../../providers/data_providers.dart';
 import 'done_section.dart';
 import 'journal_editor.dart';
+import 'leftovers_card.dart';
 import 'task_list.dart';
 
 /// One period's ToDo list with its Done page below it.
@@ -37,6 +38,7 @@ class PeriodPage extends ConsumerWidget {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
+                    if (period case final Day day) LeftoversCard(day: day),
                     if (open.isEmpty)
                       Padding(
                         padding: const EdgeInsets.all(32),

@@ -37,6 +37,7 @@ tasks:
     rolled_over: 0
     created: ${iso(14, 8, 10)}
     done_at: ${iso(14, 18, 32)}
+    dropped_at: null
     color: red
 sessions:
   - id: s_9xk1p0aa

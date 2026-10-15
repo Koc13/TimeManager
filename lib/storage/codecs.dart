@@ -73,6 +73,7 @@ Map<String, Object?> _encodeTask(Task t) => _withExtra({
   'rolled_over': t.rolledOver,
   'created': _time(t.created),
   'done_at': _time(t.doneAt),
+  'dropped_at': _time(t.droppedAt),
 }, t.extra);
 
 // A plain string item ("- Buy milk", typed in Obsidian) becomes a task.
@@ -96,6 +97,7 @@ Task _decodeTask(Object? item) {
     rolledOver: m['rolled_over'] is int ? m['rolled_over'] as int : 0,
     created: _parseTime(m['created']) ?? DateTime.now(),
     doneAt: _parseTime(m['done_at']),
+    droppedAt: _parseTime(m['dropped_at']),
     extra: _extra(m, const {
       'id',
       'title',
@@ -107,6 +109,7 @@ Task _decodeTask(Object? item) {
       'rolled_over',
       'created',
       'done_at',
+      'dropped_at',
     }),
   );
 }

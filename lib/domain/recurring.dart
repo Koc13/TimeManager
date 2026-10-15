@@ -138,9 +138,30 @@ const _keep = Object();
     final doc = docs[period.key] ?? data.period(period);
     templates.add(template.copyWith(lastGenerated: period.key));
     final hasOpen = doc.tasks.any(
-      (t) => t.recurring == template.id && !t.isDone,
+      (t) => t.recurring == template.id && t.isOpen,
     );
     if (hasOpen) continue;
+
+    // A new day-list instance supersedes unfinished ones from earlier days
+    // ("Stretch" left open yesterday isn't a separate task from today's).
+    // They are dropped, not deleted, so the history still shows them.
+    if (period is Day) {
+      for (final old in data.periods.values) {
+        if (old.period is! Day || old.period.compareTo(period) >= 0) continue;
+        final stale = docs[old.period.key] ?? old;
+        if (!stale.tasks.any((t) => t.recurring == template.id && t.isOpen)) {
+          continue;
+        }
+        docs[old.period.key] = stale.copyWith(
+          tasks: [
+            for (final t in stale.tasks)
+              t.recurring == template.id && t.isOpen
+                  ? t.copyWith(droppedAt: now)
+                  : t,
+          ],
+        );
+      }
+    }
 
     final minute = template.reminderMinute;
     final day = midnight(now);
@@ -178,6 +199,6 @@ Map<String, ({String title, DateTime at})> reminderPlan(
 ) => {
   for (final doc in data.periods.values)
     for (final task in doc.tasks)
-      if (task.reminder case final at? when !task.isDone && at.isAfter(now))
+      if (task.reminder case final at? when task.isOpen && at.isAfter(now))
         task.id: (title: task.title, at: at),
 };

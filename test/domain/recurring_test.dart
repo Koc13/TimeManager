@@ -65,6 +65,29 @@ void main() {
       );
     });
 
+    test('a new daily instance drops unfinished older ones', () {
+      final data = const AppData()
+          .withRecurring(template(const RepeatRule.daily(), last: '2026-10-13'))
+          .withPeriods([
+            PeriodDoc(
+              period: Day(DateTime(2026, 10, 13)),
+              tasks: [
+                Task(
+                  id: 't_old',
+                  title: 'Clean room',
+                  recurring: 'r_1',
+                  created: wed,
+                ),
+              ],
+            ),
+          ]);
+      final docs = {
+        for (final d in generateRecurring(data, wed).docs) d.period.key: d,
+      };
+      expect(docs['2026-10-13']!.tasks.single.droppedAt, wed);
+      expect(docs['2026-10-14']!.tasks.single.recurring, 'r_1');
+    });
+
     test('an open instance that rolled over blocks a duplicate', () {
       final data = const AppData()
           .withRecurring(template(const RepeatRule.daily(), last: '2026-10-13'))

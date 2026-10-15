@@ -70,35 +70,12 @@ void main() {
   group('rollover', () {
     final now = DateTime(2026, 10, 14, 7);
     final yesterday = Day(DateTime(2026, 10, 13));
-    final twoDaysAgo = Day(DateTime(2026, 10, 12));
-    final today = Day(DateTime(2026, 10, 14));
-    final tomorrow = Day(DateTime(2026, 10, 15));
 
-    test('moves open tasks of past days into today, oldest first', () {
+    test('daily lists do not roll over automatically', () {
       final data = const AppData().withPeriods([
-        PeriodDoc(period: twoDaysAgo, tasks: [task('a')]),
-        PeriodDoc(
-          period: yesterday,
-          tasks: [
-            task('b'),
-            task('done', doneAt: DateTime(2026, 10, 13, 20)),
-          ],
-        ),
-        PeriodDoc(period: today, tasks: [task('existing')]),
-        PeriodDoc(period: tomorrow, tasks: [task('future')]),
+        PeriodDoc(period: yesterday, tasks: [task('a')]),
       ]);
-      final after = data.withPeriods(rollover(data, now));
-
-      expect(after.period(today).tasks.map((t) => t.id), [
-        'existing',
-        'a',
-        'b',
-      ]);
-      expect(after.period(today).tasks[1].rolledOver, 1);
-      expect(after.period(twoDaysAgo).tasks, isEmpty);
-      // Done tasks stay where they were completed; the future is untouched.
-      expect(after.period(yesterday).tasks.single.id, 'done');
-      expect(after.period(tomorrow).tasks.single.id, 'future');
+      expect(rollover(data, now), isEmpty);
     });
 
     test('weeks and months roll over to the current week and month', () {
@@ -109,16 +86,66 @@ void main() {
       final after = data.withPeriods(rollover(data, now));
       expect(after.period(const Week(2026, 42)).tasks.single.id, 'w');
       expect(after.period(const Month(2026, 10)).tasks.single.id, 'm');
+      expect(after.period(const Week(2026, 42)).tasks.single.rolledOver, 1);
+      expect(after.period(const Week(2026, 41)).tasks, isEmpty);
     });
 
-    test('a task rolled twice counts 2, and nothing to do changes nothing', () {
+    test('a task rolled twice counts 2; done and dropped stay put', () {
       final data = const AppData().withPeriods([
-        PeriodDoc(period: yesterday, tasks: [task('a')]),
+        PeriodDoc(
+          period: const Week(2026, 41),
+          tasks: [
+            task('a'),
+            task('done', doneAt: DateTime(2026, 10, 6)),
+            Task(id: 'dropped', title: 'x', created: now, droppedAt: now),
+          ],
+        ),
       ]);
       final once = data.withPeriods(rollover(data, now));
-      final twice = once.withPeriods(rollover(once, DateTime(2026, 10, 15, 7)));
-      expect(twice.period(tomorrow).tasks.single.rolledOver, 2);
-      expect(rollover(twice, DateTime(2026, 10, 15, 8)), isEmpty);
+      final twice = once.withPeriods(rollover(once, DateTime(2026, 10, 21)));
+      expect(twice.period(const Week(2026, 43)).tasks.single.rolledOver, 2);
+      expect(twice.period(const Week(2026, 41)).tasks.map((t) => t.id), [
+        'done',
+        'dropped',
+      ]);
+      expect(rollover(twice, DateTime(2026, 10, 21, 8)), isEmpty);
+    });
+  });
+
+  group('leftovers', () {
+    final now = DateTime(2026, 10, 14, 21);
+    final mon = Day(DateTime(2026, 10, 12));
+    final tue = Day(DateTime(2026, 10, 13));
+    final wed = Day(now);
+    final thu = wed.next;
+    final data = const AppData().withPeriods([
+      PeriodDoc(period: mon, tasks: [task('mon-open')]),
+      PeriodDoc(
+        period: tue,
+        tasks: [
+          task('tue-open'),
+          task('tue-done', doneAt: DateTime(2026, 10, 13)),
+          Task(id: 'tue-dropped', title: 'x', created: now, droppedAt: now),
+        ],
+      ),
+      PeriodDoc(period: wed, tasks: [task('wed-open')]),
+      PeriodDoc(period: thu, tasks: [task('thu-planned')]),
+    ]);
+
+    List<String> ids(Day day) =>
+        leftovers(data, day, now).map((l) => l.task.id).toList();
+
+    test('today offers open tasks from earlier days, oldest first', () {
+      expect(ids(wed), ['mon-open', 'tue-open']);
+    });
+
+    test('tomorrow also offers what is still open today', () {
+      expect(ids(thu), ['mon-open', 'tue-open', 'wed-open']);
+    });
+
+    test('past days and later future days offer nothing', () {
+      expect(ids(tue), isEmpty);
+      expect(ids(thu.next), isEmpty);
     });
   });
 }

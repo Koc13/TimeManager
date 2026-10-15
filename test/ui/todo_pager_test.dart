@@ -75,24 +75,48 @@ void main() {
     );
   });
 
-  testWidgets('rollover on start, arrows and swipes between lists', (
+  testWidgets('leftovers are offered, kept or discarded; arrows and swipes', (
     tester,
   ) async {
     await tester.runAsync(
       () => store.savePeriods([
         PeriodDoc(
           period: Day(DateTime(2026, 10, 13)),
-          tasks: [Task(id: 't_old', title: 'Old task', created: now)],
+          tasks: [
+            Task(id: 't_keep', title: 'Old task', created: now),
+            Task(id: 't_drop', title: 'Stale task', created: now),
+          ],
         ),
       ]),
     );
     await pumpApp(tester);
-    expect(find.text('Old task'), findsOneWidget);
+    expect(find.text('Unfinished from before (2)'), findsOneWidget);
+
+    await tester.tap(
+      find.descendant(
+        of: find.widgetWithText(ListTile, 'Old task'),
+        matching: find.byTooltip('Keep'),
+      ),
+    );
+    await settleIo(tester);
+    await tester.tap(
+      find.descendant(
+        of: find.widgetWithText(ListTile, 'Stale task'),
+        matching: find.byTooltip('Discard'),
+      ),
+    );
+    await settleIo(tester);
+    expect(find.text('Unfinished from before (2)'), findsNothing);
+    expect(find.text('Old task'), findsOneWidget); // now in today's list
     expect(find.textContaining('↻ 1'), findsOneWidget);
+    final yesterday = store.data.period(Day(DateTime(2026, 10, 13)));
+    expect(yesterday.tasks.single.droppedAt, now, reason: 'kept as history');
 
     await tester.tap(find.byTooltip('Next'));
     await tester.pumpAndSettle();
     expect(find.text('Thu 15 Oct'), findsOneWidget);
+    // Planning tomorrow: today's open task is offered.
+    expect(find.text('Still open today (1)'), findsOneWidget);
 
     await tester.fling(find.byType(PageView), const Offset(-500, 0), 1000);
     await tester.pumpAndSettle();
@@ -100,6 +124,25 @@ void main() {
     await tester.fling(find.byType(PageView), const Offset(-500, 0), 1000);
     await tester.pumpAndSettle();
     expect(find.text('October 2026'), findsOneWidget);
+  });
+
+  testWidgets('postpone moves a task to tomorrow', (tester) async {
+    await tester.runAsync(
+      () => store.savePeriods([
+        PeriodDoc(
+          period: Day(now),
+          tasks: [Task(id: 't_1', title: 'Call bank', created: now)],
+        ),
+      ]),
+    );
+    await pumpApp(tester);
+    await tester.longPress(find.text('Call bank'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Postpone to Thu 15 Oct'));
+    await settleIo(tester);
+    expect(find.text('Call bank'), findsNothing);
+    final moved = store.data.period(Day(now).next).tasks.single;
+    expect((moved.title, moved.rolledOver), ('Call bank', 1));
   });
 
   testWidgets('move a task from the day list to the week list', (tester) async {

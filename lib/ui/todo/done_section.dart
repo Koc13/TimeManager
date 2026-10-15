@@ -50,6 +50,21 @@ class DoneSection extends ConsumerWidget {
               ].join('  ·  '),
             ),
           ),
+        // Discarded leftovers stay visible in their day's history.
+        for (final task in data.period(period).tasks)
+          if (task.droppedAt != null)
+            ListTile(
+              dense: true,
+              leading: const Padding(
+                padding: EdgeInsets.symmetric(horizontal: 12),
+                child: Icon(Icons.close, size: 18),
+              ),
+              title: Text(
+                task.title,
+                style: muted.copyWith(decoration: TextDecoration.lineThrough),
+              ),
+              subtitle: Text('Discarded', style: muted),
+            ),
         const SectionHeader('Other'),
         if (activity.isEmpty)
           Padding(

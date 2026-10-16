@@ -26,6 +26,24 @@
     <p>The data folder must be inside your Documents folder.</p>
   </description>
   <launchable type="desktop-id">io.github.koc13.timemanager.desktop</launchable>
+  <screenshots>
+    <screenshot type="default">
+      <caption>The daily to-do list</caption>
+      <image>https://raw.githubusercontent.com/Koc13/TimeManager/main/fastlane/metadata/android/en-US/images/phoneScreenshots/1_todo.png</image>
+    </screenshot>
+    <screenshot>
+      <caption>Goals with sub-goals and derived progress</caption>
+      <image>https://raw.githubusercontent.com/Koc13/TimeManager/main/fastlane/metadata/android/en-US/images/phoneScreenshots/2_goals.png</image>
+    </screenshot>
+    <screenshot>
+      <caption>The weekly habit grid</caption>
+      <image>https://raw.githubusercontent.com/Koc13/TimeManager/main/fastlane/metadata/android/en-US/images/phoneScreenshots/3_habits.png</image>
+    </screenshot>
+    <screenshot>
+      <caption>The focus timer</caption>
+      <image>https://raw.githubusercontent.com/Koc13/TimeManager/main/fastlane/metadata/android/en-US/images/phoneScreenshots/4_timer.png</image>
+    </screenshot>
+  </screenshots>
   <url type="homepage">https://github.com/Koc13/TimeManager</url>
   <url type="bugtracker">https://github.com/Koc13/TimeManager/issues</url>
   <content_rating type="oars-1.1"/>
